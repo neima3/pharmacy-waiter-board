@@ -121,7 +121,7 @@ export async function getProductionRecords(): Promise<WaiterRecord[]> {
   const sql = getDb()
   const rows = await sql`
     SELECT * FROM waiter_records
-    WHERE completed = FALSE
+    WHERE ready = FALSE AND completed = FALSE
     ORDER BY due_time ASC
   `
   return rows as WaiterRecord[]
