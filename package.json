@@ -1,0 +1,38 @@
+{
+  "name": "pharmacy-waiter-board",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3022",
+    "build": "next build",
+    "start": "next start --port 3022",
+    "lint": "next lint",
+    "db:seed": "tsx lib/seed.ts"
+  },
+  "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.3.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.24",
+    "better-sqlite3": "^12.6.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.34.3",
+    "lucide-react": "^0.575.0",
+    "next": "^14.2.35",
+    "postcss": "^8.5.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.0",
+    "puppeteer": "^24.37.5",
+    "tsx": "^4.21.0"
+  }
+}

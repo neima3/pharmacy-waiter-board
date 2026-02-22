@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary: #0f172a;
+  --accent: #0d9488;
+  --waiter-bg: #ffffff;
+  --acute-bg: #eff6ff;
+  --urgent-bg: #faf5ff;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.board-card {
+  @apply rounded-lg border bg-white shadow-sm transition-all duration-200;
+}
+
+.board-card:hover {
+  @apply shadow-md;
+}
+
+.order-waiter {
+  @apply bg-white border-gray-200;
+  border-left: 4px solid #22c55e;
+}
+
+.order-acute {
+  @apply bg-blue-50 border-blue-200;
+  border-left: 4px solid #3b82f6;
+}
+
+.order-urgent {
+  @apply bg-purple-50 border-purple-200;
+  border-left: 4px solid #a855f7;
+}
+
+.status-badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+
+.badge-waiter {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-acute {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-urgent {
+  @apply bg-purple-100 text-purple-800;
+}
+
+.patient-board-card {
+  @apply bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-2xl p-8 shadow-lg;
+}
+
+.patient-board-card-enter {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.countdown-urgent {
+  @apply text-orange-600 font-semibold;
+}
+
+.countdown-overdue {
+  @apply text-red-600 font-bold animate-pulse;
+}
+
+.input-field {
+  @apply w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 transition-colors focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
