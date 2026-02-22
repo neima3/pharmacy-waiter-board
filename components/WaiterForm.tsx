@@ -15,7 +15,6 @@ const orderTypes: { value: OrderType; label: string; description: string; color:
 ]
 
 interface FormErrors {
-  mrn?: string
   firstName?: string
   lastName?: string
   dob?: string
@@ -74,22 +73,12 @@ export function WaiterForm() {
   const validate = useCallback((): boolean => {
     const newErrors: FormErrors = {}
     
-    if (!mrn.trim()) {
-      newErrors.mrn = 'MRN is required'
-    } else if (mrn.length < 5) {
-      newErrors.mrn = 'MRN must be at least 5 characters'
-    }
-    
     if (!firstName.trim()) {
       newErrors.firstName = 'First name is required'
     }
     
     if (!lastName.trim()) {
       newErrors.lastName = 'Last name is required'
-    }
-    
-    if (!dob) {
-      newErrors.dob = 'Date of birth is required'
     }
     
     if (!initials.trim()) {
@@ -100,7 +89,7 @@ export function WaiterForm() {
     
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-  }, [mrn, firstName, lastName, dob, initials])
+  }, [firstName, lastName, initials])
 
   const resetForm = useCallback(() => {
     setMrn('')
@@ -231,12 +220,10 @@ export function WaiterForm() {
               value={mrn}
               onChange={(value) => {
                 setMrn(value)
-                if (errors.mrn) setErrors(prev => ({ ...prev, mrn: undefined }))
               }}
               onPatientFound={handlePatientFound}
               onClear={handleClear}
               inputRef={mrnRef}
-              error={getFieldError('mrn')}
               onBlur={() => markTouched('mrn')}
             />
           </div>

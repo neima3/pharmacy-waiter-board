@@ -7,12 +7,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function maskName(firstName: string, lastName: string): string {
-  const maskedFirst = firstName.length > 2 
-    ? firstName.substring(0, 2) + '*'.repeat(firstName.length - 2)
-    : firstName
-  const maskedLast = lastName.length > 3 
-    ? lastName.substring(0, 3) + '*'.repeat(lastName.length - 3)
-    : lastName
+  let maskedFirst: string
+  if (firstName.length <= 2) {
+    maskedFirst = firstName
+  } else {
+    maskedFirst = firstName.substring(0, 2) + '***'
+  }
+  
+  let maskedLast: string
+  if (lastName.length <= 3) {
+    maskedLast = lastName.substring(0, 2) + '*'
+  } else {
+    maskedLast = lastName.substring(0, 3) + '***'
+  }
+  
   return `${maskedFirst} ${maskedLast}`
 }
 

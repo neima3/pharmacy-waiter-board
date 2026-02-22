@@ -16,65 +16,77 @@ export async function initializeDatabase() {
 
 async function _initDb() {
   const sql = getDb()
-  await sql`
-    CREATE TABLE IF NOT EXISTS patients (
-      id SERIAL PRIMARY KEY,
-      mrn TEXT UNIQUE NOT NULL,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      dob TEXT NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS waiter_records (
-      id SERIAL PRIMARY KEY,
-      mrn TEXT NOT NULL,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      dob TEXT NOT NULL,
-      num_prescriptions INTEGER DEFAULT 1,
-      comments TEXT DEFAULT '',
-      initials TEXT NOT NULL,
-      order_type TEXT DEFAULT 'waiter',
-      due_time TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      printed BOOLEAN DEFAULT FALSE,
-      ready BOOLEAN DEFAULT FALSE,
-      ready_at TIMESTAMPTZ,
-      completed BOOLEAN DEFAULT FALSE
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id SERIAL PRIMARY KEY,
-      record_id INTEGER,
-      action TEXT NOT NULL,
-      old_values TEXT,
-      new_values TEXT,
-      staff_initials TEXT,
-      timestamp TIMESTAMPTZ DEFAULT NOW()
-    )
-  `
-  // Insert default settings
-  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+  try {
     await sql`
-      INSERT INTO settings (key, value)
-      VALUES (${key}, ${JSON.stringify(value)})
-      ON CONFLICT (key) DO NOTHING
+      CREATE TABLE IF NOT EXISTS patients (
+        id SERIAL PRIMARY KEY,
+        mrn TEXT UNIQUE NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        dob TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
     `
-  }
-  // Seed patients if empty
-  const count = await sql`SELECT COUNT(*) as cnt FROM patients`
-  if (Number((count[0] as any).cnt) === 0) {
-    await seedPatients()
+    await sql`
+      CREATE TABLE IF NOT EXISTS waiter_records (
+        id SERIAL PRIMARY KEY,
+        mrn TEXT NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        dob TEXT NOT NULL,
+        num_prescriptions INTEGER DEFAULT 1,
+        comments TEXT DEFAULT '',
+        initials TEXT NOT NULL,
+        order_type TEXT DEFAULT 'waiter',
+        due_time TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        printed BOOLEAN DEFAULT FALSE,
+        ready BOOLEAN DEFAULT FALSE,
+        ready_at TIMESTAMPTZ,
+        completed BOOLEAN DEFAULT FALSE
+      )
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        record_id INTEGER,
+        action TEXT NOT NULL,
+        old_values TEXT,
+        new_values TEXT,
+        staff_initials TEXT,
+        timestamp TIMESTAMPTZ DEFAULT NOW()
+      )
+    `
+    // Insert default settings
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      await sql`
+        INSERT INTO settings (key, value)
+        VALUES (${key}, ${JSON.stringify(value)})
+        ON CONFLICT (key) DO NOTHING
+      `
+    }
+    // Seed patients if empty
+    const count = await sql`SELECT COUNT(*) as cnt FROM patients`
+    if (Number((count[0] as any).cnt) === 0) {
+      await seedPatients()
+    }
+  } catch (error: any) {
+    const errMsg = error?.message || ''
+    const code = error?.code || ''
+    if (code === '23505' || errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('duplicate')) {
+      console.log('Database init: tables already exist, skipping')
+    } else {
+      console.error('Database init error:', error)
+    }
+  } finally {
+    initialized = true
   }
 }
 
@@ -153,6 +165,16 @@ export async function getReadyWaiterRecords(): Promise<WaiterRecord[]> {
       AND order_type = 'waiter'
       AND (ready_at IS NULL OR ready_at > ${cutoff}::timestamptz)
     ORDER BY ready_at ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getCompletedRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE ready = TRUE AND completed = FALSE
+    ORDER BY ready_at DESC
   `
   return rows as WaiterRecord[]
 }

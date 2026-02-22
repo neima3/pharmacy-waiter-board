@@ -3,35 +3,50 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  RefreshCw, Inbox, Clock, Search, Filter, 
-  CheckSquare, Square, Trash2, Printer, 
-  CheckCircle, X, ChevronDown
+  RefreshCw, Inbox, Clock, Plus, X, Check, Trash2, Printer, CheckCircle, Edit3
 } from 'lucide-react'
-import { WaiterRecord } from '@/lib/types'
-import { RecordCard } from './RecordCard'
-import { RecordCardSkeleton } from './Skeleton'
-import { cn } from '@/lib/utils'
+import { WaiterRecord, OrderType } from '@/lib/types'
+import { cn, formatTimeRemaining, getTimeRemaining, getOrderTypeLabel, formatTime } from '@/lib/utils'
 import { toast } from 'sonner'
 
-type FilterType = 'all' | 'waiter' | 'acute' | 'urgent_mail'
-type SortBy = 'due_time' | 'created_at' | 'name'
+type TabType = 'active' | 'completed'
+
+const orderTypeOptions: { value: OrderType; label: string; color: string }[] = [
+  { value: 'waiter', label: 'W', color: 'green' },
+  { value: 'acute', label: 'A', color: 'blue' },
+  { value: 'urgent_mail', label: 'U', color: 'purple' },
+]
 
 export function ProductionBoard() {
   const [records, setRecords] = useState<WaiterRecord[]>([])
+  const [completedRecords, setCompletedRecords] = useState<WaiterRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filterType, setFilterType] = useState<FilterType>('all')
-  const [sortBy, setSortBy] = useState<SortBy>('due_time')
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [showFilters, setShowFilters] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>('active')
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  
+  const [quickAddForm, setQuickAddForm] = useState({
+    first_name: '',
+    last_name: '',
+    mrn: '',
+    num_prescriptions: 1,
+    initials: '',
+    order_type: 'waiter' as OrderType,
+    comments: ''
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const fetchRecords = useCallback(async () => {
     try {
-      const response = await fetch('/api/records?type=production')
-      const data = await response.json()
-      setRecords(data)
+      const [activeRes, completedRes] = await Promise.all([
+        fetch('/api/records?type=production'),
+        fetch('/api/records?type=completed')
+      ])
+      const activeData = await activeRes.json()
+      const completedData = await completedRes.json()
+      setRecords(activeData)
+      setCompletedRecords(completedData)
     } catch (error) {
       console.error('Failed to fetch records:', error)
       toast.error('Failed to fetch records')
@@ -58,7 +73,6 @@ export function ProductionBoard() {
       
       if (response.ok) {
         fetchRecords()
-        toast.success('Record updated')
       }
     } catch (error) {
       console.error('Failed to update record:', error)
@@ -75,12 +89,7 @@ export function ProductionBoard() {
       })
       
       if (response.ok) {
-        setRecords(records.filter(r => r.id !== id))
-        setSelectedIds(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(id)
-          return newSet
-        })
+        fetchRecords()
         toast.success('Record deleted')
       }
     } catch (error) {
@@ -89,112 +98,75 @@ export function ProductionBoard() {
     }
   }
 
+  const handleMarkComplete = async (id: number) => {
+    try {
+      const response = await fetch(`/api/records/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: true }),
+      })
+      
+      if (response.ok) {
+        fetchRecords()
+        toast.success('Order marked as complete')
+      }
+    } catch (error) {
+      console.error('Failed to mark complete:', error)
+      toast.error('Failed to mark complete')
+    }
+  }
+
   const handleRefresh = () => {
     setIsRefreshing(true)
     fetchRecords()
   }
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
-      }
-      return newSet
-    })
-  }
-
-  const selectAll = () => {
-    if (selectedIds.size === filteredRecords.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filteredRecords.map(r => r.id)))
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!quickAddForm.first_name.trim() || !quickAddForm.last_name.trim() || !quickAddForm.initials.trim()) {
+      toast.error('First name, last name, and initials are required')
+      return
     }
-  }
-
-  const bulkMarkPrinted = async () => {
-    const updates = Array.from(selectedIds).map(id => 
-      fetch(`/api/records/${id}`, {
-        method: 'PUT',
+    
+    setIsSubmitting(true)
+    
+    try {
+      const response = await fetch('/api/records', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printed: true }),
+        body: JSON.stringify(quickAddForm),
       })
-    )
-    await Promise.all(updates)
-    setSelectedIds(new Set())
-    fetchRecords()
-    toast.success(`${selectedIds.size} records marked as printed`)
-  }
-
-  const bulkMarkReady = async () => {
-    const updates = Array.from(selectedIds).map(id => 
-      fetch(`/api/records/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ready: true }),
-      })
-    )
-    await Promise.all(updates)
-    setSelectedIds(new Set())
-    fetchRecords()
-    toast.success(`${selectedIds.size} records marked as ready`)
-  }
-
-  const bulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} records?`)) return
-    
-    const deletions = Array.from(selectedIds).map(id => 
-      fetch(`/api/records/${id}`, { method: 'DELETE' })
-    )
-    await Promise.all(deletions)
-    setSelectedIds(new Set())
-    fetchRecords()
-    toast.success(`${selectedIds.size} records deleted`)
-  }
-
-  const filteredRecords = useMemo(() => {
-    let filtered = [...records]
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(r => 
-        r.first_name.toLowerCase().includes(query) ||
-        r.last_name.toLowerCase().includes(query) ||
-        r.mrn.toLowerCase().includes(query) ||
-        r.initials.toLowerCase().includes(query)
-      )
-    }
-    
-    if (filterType !== 'all') {
-      filtered = filtered.filter(r => r.order_type === filterType)
-    }
-    
-    filtered.sort((a, b) => {
-      if (sortBy === 'due_time') {
-        return new Date(a.due_time).getTime() - new Date(b.due_time).getTime()
-      } else if (sortBy === 'created_at') {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      
+      if (response.ok) {
+        toast.success('Record created')
+        setQuickAddForm({
+          first_name: '',
+          last_name: '',
+          mrn: '',
+          num_prescriptions: 1,
+          initials: '',
+          order_type: 'waiter',
+          comments: ''
+        })
+        setShowQuickAdd(false)
+        fetchRecords()
       } else {
-        return a.last_name.localeCompare(b.last_name)
+        toast.error('Failed to create record')
       }
-    })
-    
-    return filtered
-  }, [records, searchQuery, filterType, sortBy])
-
-  const waiterRecords = filteredRecords.filter(r => r.order_type === 'waiter')
-  const acuteRecords = filteredRecords.filter(r => r.order_type === 'acute')
-  const urgentRecords = filteredRecords.filter(r => r.order_type === 'urgent_mail')
+    } catch (error) {
+      console.error('Failed to create record:', error)
+      toast.error('Failed to create record')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const stats = useMemo(() => ({
     total: records.length,
-    waiter: records.filter(r => r.order_type === 'waiter').length,
-    acute: records.filter(r => r.order_type === 'acute').length,
-    urgent: records.filter(r => r.order_type === 'urgent_mail').length,
     overdue: records.filter(r => new Date(r.due_time) < new Date()).length,
-  }), [records])
+    completed: completedRecords.length
+  }), [records, completedRecords])
 
   if (isLoading) {
     return (
@@ -202,45 +174,86 @@ export function ProductionBoard() {
         <div className="flex items-center justify-between">
           <div className="h-8 w-48 animate-pulse rounded bg-gray-200" />
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <RecordCardSkeleton />
-          <RecordCardSkeleton />
-          <RecordCardSkeleton />
-          <RecordCardSkeleton />
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-gray-200" />
+          ))}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Production Board
-            </h2>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-teal-100 px-3 py-1 text-sm font-medium text-teal-800">
-                {stats.total} Active
-              </span>
-              {stats.overdue > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800"
-                >
-                  {stats.overdue} Overdue
-                </motion.span>
-              )}
+            <div className="flex rounded-lg bg-gray-100 p-1">
+              <button
+                onClick={() => setActiveTab('active')}
+                className={cn(
+                  'rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                  activeTab === 'active'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                )}
+              >
+                Active Orders
+                <span className={cn(
+                  'ml-2 rounded-full px-2 py-0.5 text-xs',
+                  activeTab === 'active' ? 'bg-teal-100 text-teal-800' : 'bg-gray-200 text-gray-600'
+                )}>
+                  {stats.total}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('completed')}
+                className={cn(
+                  'rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                  activeTab === 'completed'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                )}
+              >
+                Completed
+                <span className={cn(
+                  'ml-2 rounded-full px-2 py-0.5 text-xs',
+                  activeTab === 'completed' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'
+                )}>
+                  {stats.completed}
+                </span>
+              </button>
             </div>
+            
+            {activeTab === 'active' && stats.overdue > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800"
+              >
+                {stats.overdue} Overdue
+              </motion.span>
+            )}
           </div>
           
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Clock className="h-4 w-4" />
-              Last refresh: {lastRefresh.toLocaleTimeString()}
+              {lastRefresh.toLocaleTimeString()}
             </div>
+            
+            {activeTab === 'active' && (
+              <motion.button
+                onClick={() => setShowQuickAdd(true)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="btn-primary"
+              >
+                <Plus className="h-4 w-4" />
+                Quick Add
+              </motion.button>
+            )}
+            
             <motion.button
               onClick={handleRefresh}
               disabled={isRefreshing}
@@ -249,333 +262,436 @@ export function ProductionBoard() {
               className="btn-secondary"
             >
               <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
-              Refresh
             </motion.button>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      {activeTab === 'active' && showQuickAdd && (
+        <motion.form
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          onSubmit={handleQuickAddSubmit}
+          className="rounded-xl border-2 border-teal-200 bg-teal-50/50 p-4"
+        >
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Search by name, MRN, or initials..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-field pl-10"
+                placeholder="First Name"
+                value={quickAddForm.first_name}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, first_name: e.target.value }))}
+                className="input-field w-32 py-1.5 text-sm"
+                autoFocus
+              />
+              <input
+                type="text"
+                placeholder="Last Name"
+                value={quickAddForm.last_name}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, last_name: e.target.value }))}
+                className="input-field w-32 py-1.5 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="MRN (opt)"
+                value={quickAddForm.mrn}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, mrn: e.target.value }))}
+                className="input-field w-28 py-1.5 text-sm"
               />
             </div>
             
-            <motion.button
-              onClick={() => setShowFilters(!showFilters)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={cn(
-                'btn-secondary',
-                showFilters && 'bg-gray-100'
-              )}
-            >
-              <Filter className="h-4 w-4" />
-              Filters
-              <ChevronDown className={cn('h-4 w-4 transition-transform', showFilters && 'rotate-180')} />
-            </motion.button>
-          </div>
-
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="flex flex-wrap items-center gap-4 border-t pt-4"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">Type:</span>
-                  <div className="flex gap-1">
-                    {[
-                      { value: 'all', label: 'All' },
-                      { value: 'waiter', label: 'Waiter', color: 'bg-green-100 text-green-800' },
-                      { value: 'acute', label: 'Acute', color: 'bg-blue-100 text-blue-800' },
-                      { value: 'urgent_mail', label: 'Urgent', color: 'bg-purple-100 text-purple-800' },
-                    ].map((type) => (
-                      <button
-                        key={type.value}
-                        onClick={() => setFilterType(type.value as FilterType)}
-                        className={cn(
-                          'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                          filterType === type.value
-                            ? type.color || 'bg-gray-100 text-gray-800'
-                            : 'text-gray-500 hover:bg-gray-50'
-                        )}
-                      >
-                        {type.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">Sort by:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SortBy)}
-                    className="input-field py-1.5"
-                  >
-                    <option value="due_time">Due Time</option>
-                    <option value="created_at">Recently Added</option>
-                    <option value="name">Name</option>
-                  </select>
-                </div>
-
-                {(searchQuery || filterType !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery('')
-                      setFilterType('all')
-                    }}
-                    className="text-sm text-teal-600 hover:text-teal-700"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {selectedIds.size > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="flex items-center justify-between rounded-xl bg-teal-50 px-4 py-3"
-          >
-            <span className="text-sm font-medium text-teal-800">
-              {selectedIds.size} selected
-            </span>
             <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600"># Rx:</span>
+              <input
+                type="number"
+                min={1}
+                value={quickAddForm.num_prescriptions}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, num_prescriptions: parseInt(e.target.value) || 1 }))}
+                className="input-field w-16 py-1.5 text-sm text-center"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Initials"
+                value={quickAddForm.initials}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, initials: e.target.value.toUpperCase().slice(0, 3) }))}
+                className="input-field w-20 py-1.5 text-sm uppercase"
+                maxLength={3}
+              />
+            </div>
+            
+            <div className="flex items-center gap-1">
+              {orderTypeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setQuickAddForm(prev => ({ ...prev, order_type: opt.value }))}
+                  className={cn(
+                    'rounded px-2 py-1 text-xs font-bold transition-colors',
+                    quickAddForm.order_type === opt.value
+                      ? opt.color === 'green' ? 'bg-green-500 text-white'
+                        : opt.color === 'blue' ? 'bg-blue-500 text-white'
+                        : 'bg-purple-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            
+            <input
+              type="text"
+              placeholder="Comments..."
+              value={quickAddForm.comments}
+              onChange={e => setQuickAddForm(prev => ({ ...prev, comments: e.target.value }))}
+              className="input-field flex-1 min-w-[150px] py-1.5 text-sm"
+            />
+            
+            <div className="flex items-center gap-2 ml-auto">
               <motion.button
-                onClick={bulkMarkPrinted}
+                type="submit"
+                disabled={isSubmitting}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                className="btn-primary py-1.5"
               >
-                <Printer className="h-4 w-4" />
-                Mark Printed
-              </motion.button>
-              <motion.button
-                onClick={bulkMarkReady}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-              >
-                <CheckCircle className="h-4 w-4" />
-                Mark Ready
-              </motion.button>
-              <motion.button
-                onClick={bulkDelete}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
+                {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Add
               </motion.button>
               <button
-                onClick={() => setSelectedIds(new Set())}
-                className="rounded-lg p-1.5 text-teal-600 hover:bg-teal-100"
+                type="button"
+                onClick={() => setShowQuickAdd(false)}
+                className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-200"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
+          </div>
+        </motion.form>
+      )}
+
+      {activeTab === 'active' ? (
+        records.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50"
+          >
+            <Inbox className="h-12 w-12 text-gray-400" />
+            <p className="mt-4 text-lg font-medium text-gray-600">No Active Orders</p>
+            <p className="text-sm text-gray-400">Click Quick Add to create a new order</p>
           </motion.div>
-        )}
-      </div>
-
-      {filteredRecords.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50"
-        >
-          <Inbox className="h-12 w-12 text-gray-400" />
-          <p className="mt-4 text-lg font-medium text-gray-600">
-            {searchQuery || filterType !== 'all' ? 'No matching orders' : 'No Active Orders'}
-          </p>
-          <p className="text-sm text-gray-400">
-            {searchQuery || filterType !== 'all' 
-              ? 'Try adjusting your search or filters' 
-              : 'Orders will appear here when added from the Entry Board'}
-          </p>
-        </motion.div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+              <div className="w-8">Type</div>
+              <div>Patient Name</div>
+              <div className="w-12 text-center"># Rx</div>
+              <div className="w-24 text-center">Due Time</div>
+              <div className="w-12 text-center">Init</div>
+              <div className="w-40">Comments</div>
+              <div className="w-20 text-center">Status</div>
+              <div className="w-10"></div>
+            </div>
+            
+            <AnimatePresence mode="popLayout">
+              {records.map((record) => (
+                <RecordRow
+                  key={record.id}
+                  record={record}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )
       ) : (
-        <div className="space-y-8">
-          {waiterRecords.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <span className="h-3 w-3 rounded-full bg-green-500" />
-                  Waiter Orders ({waiterRecords.length})
-                </h3>
-                <button
-                  onClick={() => {
-                    const waiterIds = waiterRecords.map(r => r.id)
-                    if (waiterIds.every(id => selectedIds.has(id))) {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        waiterIds.forEach(id => newSet.delete(id))
-                        return newSet
-                      })
-                    } else {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        waiterIds.forEach(id => newSet.add(id))
-                        return newSet
-                      })
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
-                >
-                  {waiterRecords.every(r => selectedIds.has(r.id)) ? (
-                    <CheckSquare className="h-4 w-4" />
-                  ) : (
-                    <Square className="h-4 w-4" />
-                  )}
-                  Select all
-                </button>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <AnimatePresence mode="popLayout">
-                  {waiterRecords.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      record={record}
-                      onUpdate={handleUpdate}
-                      onDelete={handleDelete}
-                      isSelected={selectedIds.has(record.id)}
-                      onSelect={() => toggleSelect(record.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
-
-          {acuteRecords.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <span className="h-3 w-3 rounded-full bg-blue-500" />
-                  Acute Orders ({acuteRecords.length})
-                </h3>
-                <button
-                  onClick={() => {
-                    const acuteIds = acuteRecords.map(r => r.id)
-                    if (acuteIds.every(id => selectedIds.has(id))) {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        acuteIds.forEach(id => newSet.delete(id))
-                        return newSet
-                      })
-                    } else {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        acuteIds.forEach(id => newSet.add(id))
-                        return newSet
-                      })
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
-                >
-                  {acuteRecords.every(r => selectedIds.has(r.id)) ? (
-                    <CheckSquare className="h-4 w-4" />
-                  ) : (
-                    <Square className="h-4 w-4" />
-                  )}
-                  Select all
-                </button>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <AnimatePresence mode="popLayout">
-                  {acuteRecords.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      record={record}
-                      onUpdate={handleUpdate}
-                      onDelete={handleDelete}
-                      isSelected={selectedIds.has(record.id)}
-                      onSelect={() => toggleSelect(record.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
-
-          {urgentRecords.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <span className="h-3 w-3 rounded-full bg-purple-500" />
-                  Urgent Mail Orders ({urgentRecords.length})
-                </h3>
-                <button
-                  onClick={() => {
-                    const urgentIds = urgentRecords.map(r => r.id)
-                    if (urgentIds.every(id => selectedIds.has(id))) {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        urgentIds.forEach(id => newSet.delete(id))
-                        return newSet
-                      })
-                    } else {
-                      setSelectedIds(prev => {
-                        const newSet = new Set(prev)
-                        urgentIds.forEach(id => newSet.add(id))
-                        return newSet
-                      })
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
-                >
-                  {urgentRecords.every(r => selectedIds.has(r.id)) ? (
-                    <CheckSquare className="h-4 w-4" />
-                  ) : (
-                    <Square className="h-4 w-4" />
-                  )}
-                  Select all
-                </button>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <AnimatePresence mode="popLayout">
-                  {urgentRecords.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      record={record}
-                      onUpdate={handleUpdate}
-                      onDelete={handleDelete}
-                      isSelected={selectedIds.has(record.id)}
-                      onSelect={() => toggleSelect(record.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        completedRecords.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-green-300 bg-green-50"
+          >
+            <CheckCircle className="h-12 w-12 text-green-400" />
+            <p className="mt-4 text-lg font-medium text-green-700">No Completed Orders</p>
+            <p className="text-sm text-green-600">Orders ready for pickup will appear here</p>
+          </motion.div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-green-200 bg-green-50/30">
+            <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 border-b border-green-200 bg-green-100/50 px-3 py-2 text-xs font-medium text-green-700 uppercase tracking-wide">
+              <div className="w-8">Type</div>
+              <div>Patient Name</div>
+              <div className="w-12 text-center"># Rx</div>
+              <div className="w-24 text-center">Ready At</div>
+              <div className="w-12 text-center">Init</div>
+              <div className="w-40">Comments</div>
+              <div className="w-28 text-center">Action</div>
+            </div>
+            
+            <AnimatePresence mode="popLayout">
+              {completedRecords.map((record) => (
+                <CompletedRecordRow
+                  key={record.id}
+                  record={record}
+                  onMarkComplete={handleMarkComplete}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )
       )}
     </div>
+  )
+}
+
+interface RecordRowProps {
+  record: WaiterRecord
+  onUpdate: (id: number, updates: Partial<WaiterRecord>) => void
+  onDelete: (id: number) => void
+}
+
+function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
+  const [isEditingComments, setIsEditingComments] = useState(false)
+  const [editedComments, setEditedComments] = useState(record.comments)
+  const [countdown, setCountdown] = useState(formatTimeRemaining(record.due_time))
+  const [timeInfo, setTimeInfo] = useState(getTimeRemaining(record.due_time))
+  
+  const originalComments = useMemo(() => record.comments, [record.id])
+  const commentsEdited = editedComments !== originalComments && originalComments !== ''
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const info = getTimeRemaining(record.due_time)
+      setCountdown(formatTimeRemaining(record.due_time))
+      setTimeInfo(info)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [record.due_time])
+
+  const handleSaveComments = () => {
+    onUpdate(record.id, { comments: editedComments })
+    setIsEditingComments(false)
+  }
+
+  const getRowBackground = () => {
+    if (timeInfo.isOverdue) return 'bg-red-50 hover:bg-red-100'
+    if (timeInfo.total < 300000) return 'bg-orange-50 hover:bg-orange-100'
+    if (timeInfo.total < 600000) return 'bg-yellow-50 hover:bg-yellow-100'
+    return 'hover:bg-gray-50'
+  }
+
+  const getTypeColor = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'bg-green-500'
+      case 'acute': return 'bg-blue-500'
+      case 'urgent_mail': return 'bg-purple-500'
+    }
+  }
+
+  const getTypeBadge = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'bg-green-100 text-green-700'
+      case 'acute': return 'bg-blue-100 text-blue-700'
+      case 'urgent_mail': return 'bg-purple-100 text-purple-700'
+    }
+  }
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      className={cn(
+        'grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b border-gray-100 px-3 py-2.5 items-center transition-colors',
+        getRowBackground()
+      )}
+    >
+      <div className="flex items-center gap-2 w-8">
+        <div className={cn('w-1 h-8 rounded-full', getTypeColor())} />
+        <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', getTypeBadge())}>
+          {record.order_type === 'waiter' ? 'W' : record.order_type === 'acute' ? 'A' : 'U'}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        <span className="font-medium text-gray-900 text-base">
+          {record.first_name} {record.last_name}
+        </span>
+        {record.mrn && (
+          <span className="text-xs text-gray-500">({record.mrn})</span>
+        )}
+      </div>
+      
+      <div className="w-12 text-center font-medium text-gray-700">
+        {record.num_prescriptions}
+      </div>
+      
+      <div className="w-24 text-center">
+        <div className={cn(
+          'font-mono text-sm font-medium tabular-nums',
+          timeInfo.isOverdue ? 'text-red-600' : 
+          timeInfo.total < 300000 ? 'text-orange-600' : 'text-gray-700'
+        )}>
+          {countdown}
+        </div>
+        <div className="text-xs text-gray-400">
+          {formatTime(record.due_time)}
+        </div>
+      </div>
+      
+      <div className="w-12 text-center font-medium text-gray-700 uppercase">
+        {record.initials}
+      </div>
+      
+      <div className="w-40 flex items-center gap-1">
+        {isEditingComments ? (
+          <div className="flex items-center gap-1 w-full">
+            <input
+              type="text"
+              value={editedComments}
+              onChange={e => setEditedComments(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSaveComments()
+                if (e.key === 'Escape') {
+                  setEditedComments(record.comments)
+                  setIsEditingComments(false)
+                }
+              }}
+              className="input-field w-full py-0.5 text-sm"
+              autoFocus
+            />
+            <button onClick={handleSaveComments} className="p-1 text-green-600 hover:bg-green-100 rounded">
+              <Check className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <div 
+            className="flex items-center gap-1 cursor-pointer group w-full"
+            onClick={() => setIsEditingComments(true)}
+          >
+            <span className={cn('text-sm truncate', record.comments ? 'text-gray-700' : 'text-gray-400 italic')}>
+              {record.comments || 'Add...'}
+            </span>
+            {commentsEdited && (
+              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Edited" />
+            )}
+            <Edit3 className="h-3 w-3 text-gray-300 group-hover:text-gray-500 flex-shrink-0" />
+          </div>
+        )}
+      </div>
+      
+      <div className="w-20 flex items-center justify-center gap-2">
+        <label className="flex items-center gap-1 cursor-pointer" title="Printed">
+          <input
+            type="checkbox"
+            checked={record.printed}
+            onChange={() => onUpdate(record.id, { printed: !record.printed })}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <Printer className="h-3 w-3 text-gray-500" />
+        </label>
+        <label className="flex items-center gap-1 cursor-pointer" title="Ready">
+          <input
+            type="checkbox"
+            checked={record.ready}
+            onChange={() => onUpdate(record.id, { ready: true })}
+            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+          />
+          <CheckCircle className="h-3 w-3 text-gray-500" />
+        </label>
+      </div>
+      
+      <div className="w-10 text-center">
+        <button
+          onClick={() => onDelete(record.id)}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+interface CompletedRecordRowProps {
+  record: WaiterRecord
+  onMarkComplete: (id: number) => void
+}
+
+function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps) {
+  const getTypeColor = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'bg-green-500'
+      case 'acute': return 'bg-blue-500'
+      case 'urgent_mail': return 'bg-purple-500'
+    }
+  }
+
+  const getTypeBadge = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'bg-green-100 text-green-700'
+      case 'acute': return 'bg-blue-100 text-blue-700'
+      case 'urgent_mail': return 'bg-purple-100 text-purple-700'
+    }
+  }
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 100 }}
+      className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 border-b border-green-100 px-3 py-2.5 items-center hover:bg-green-100/50 transition-colors"
+    >
+      <div className="flex items-center gap-2 w-8">
+        <div className={cn('w-1 h-8 rounded-full', getTypeColor())} />
+        <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', getTypeBadge())}>
+          {record.order_type === 'waiter' ? 'W' : record.order_type === 'acute' ? 'A' : 'U'}
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        <span className="font-medium text-gray-900 text-base">
+          {record.first_name} {record.last_name}
+        </span>
+        {record.mrn && (
+          <span className="text-xs text-gray-500">({record.mrn})</span>
+        )}
+      </div>
+      
+      <div className="w-12 text-center font-medium text-gray-700">
+        {record.num_prescriptions}
+      </div>
+      
+      <div className="w-24 text-center text-sm text-gray-600">
+        {record.ready_at ? formatTime(record.ready_at) : '-'}
+      </div>
+      
+      <div className="w-12 text-center font-medium text-gray-700 uppercase">
+        {record.initials}
+      </div>
+      
+      <div className="w-40 text-sm text-gray-600 truncate">
+        {record.comments || '-'}
+      </div>
+      
+      <div className="w-28 text-center">
+        <motion.button
+          onClick={() => onMarkComplete(record.id)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+        >
+          <CheckCircle className="h-4 w-4" />
+          Complete
+        </motion.button>
+      </div>
+    </motion.div>
   )
 }

@@ -107,21 +107,6 @@ export function PatientBoard() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
-  const handleComplete = async (id: number) => {
-    try {
-      await fetch(`/api/records/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: true }),
-      })
-      fetchRecords()
-      toast.success('Order marked as picked up')
-    } catch (error) {
-      console.error('Failed to mark complete:', error)
-      toast.error('Failed to mark as picked up')
-    }
-  }
-
   const pharmacyName = settings?.pharmacy_name || 'Community Pharmacy'
   const message = settings?.patient_board_message || 'Your order is ready - Please see the pharmacist'
   const fontSize = settings?.display_font_size || 'large'
@@ -142,7 +127,7 @@ export function PatientBoard() {
     >
       <audio 
         ref={audioRef} 
-        src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleE4jCXvLt7eJYkw9MYa5wLfNYGdDOnLPu66ncmJKQn/cv7G0jHRUT1SPtK2qg2ZcX2aIs6mpeW1oZYazqamCa29ocYayqKmCbXJpdImzqKmCb3VzdYq0qamDcnd3d4q1qamDc3h4eIm2qamDdHl5eIm3qamDdXp6eIi4qamDdnt7eIi5qamDeHx8eIe6qamDeX19eIe7qamDen5+eIe8qamDfX9/eIi9qamDgIB/eYm+qamDgYCAeYnAqamDgoGAeIm/qamDg4KBeYq/qamEhIOBeou/qamEhYSBeoy/qamEhYWBeYzAqamEhoWBeI3AqamEh4aBeI3AqamEiIeBeI7AqamEiYiBeI7AqamEiomJeI/AqamEi4mJeI/AqamEjIqJeZDAqamEjYuJeZDAqamDjouJeZHAqamDj4yJeZHBAqamDkI2KeZHBAqamDkY6KeZHBAamnDko+LeZHBAamnDk5DLepHBAamnDk9ELepHBAGlnDlBFLupHBAGlnDlJGLupIBAGlnDlNHLupIBAGlnDlRILupIBAGlnDlVJLupIBAGlnDlZKLupIBAGlnDldLLupIBAGlnDlhMLupIBAGlnDllNLupIBAGlnDlpOLupIBAGlnDltPLupIBAGlnDlxQLupIBAGlnDl1RLupIBAGlnDl5SLupIBAGlnDl9TLupIBAGlnDmBULupIBAGlnDmFVLupIBAGlnDmJWLupIBAGlnDmNXLupIBAGlnDmRYLupIBAGlnDmVZLupIBAGlnDmZaLupIBAGlnDmdbLupIBAGlnDmhcLupIBAGlnDmldLupIBAGlnDmpdLulIBAGlnDmtcLulIBAGlnDmxcLulIBAGlnDm1cLulIBAGlnDm5bLulIBAGlnDm9bLulIBAGlnDnBbLulIBAGlnDnFbLelIBAGlnDnJbLelIBGGlnDnNbLelIBGGlnDnRbLelIBGGlnDnVbLelIBGGlnDnZbLelIBGGlnDndbLelIBGGlnDnhbLelIBGGlnDnlbLelIBGGlnDnpbLelIBGGlnDntbLelIBGGlnDnxbLelIBGGlnDn1bLelIBGGlnDn5bLelIBGGlnDn9bLelIBGGlmDn9bKqlIBGGlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn5bKqlIBGWlmDn1bKqlIBGWlmDnxbKqlIBGWlmDntbKqlIBGWlmDnpbKqlIBGWlmDnlbKqlIBGWlmDnhbKqlIBGWlmDndbKqlIBGWlmDnZbKqlIBGWlmDnVbKqlIBGWlmDnRbKqlIBGWlmDnNbKqlIBGWlmDnJbKqlIBGWlmDnFbKqlIBGWlmDnBbKqlIBGWlmDm9bKqlIBGWlmDm5bKqlIBGWlmDm1bKqlIBGWlmDmxbKqlIBGWlmDmtbKqlIBGWlmDmpbKqlIBGWlmDmdbKqlIBGWlmDmZbKqlIBGWlmDmVbKqlIBGWlmDmRbKqlIBGWlmDmNbKqlIBGWlmDmJbKqlIBGWlmDmFbKqlIBGWlmDmBbKqlIBGWlmDl9bKqlIBGWlmDl5bKqlIBGWlmDl1bKqlIBGWlmDlxbKqlIBGWlmDltbKqlIBGWlmDlpbKqlIBGWlmDllbKqlIBGWlmDlhbKqlIBGWlmDldbKqlIBGWlmDlZbKqlIBGWlmDlVbKqlIBGWlmDlRbKqlIBGWlmDlNbKqlIBGWlmDlJbKqlIBGWlmDlFbKqlIBGWlmDlBbKqlIBGWlmDk9bKqlIBGWlmDk5bKqlIBGWlmDk1bKqlIBGWlmDktbKqlIBGWlmDkpbKqlIBGWlmDklbKqlIBGWlmDkhbKqlIBGWlmDkdbKqlIBGWlmDkZbKqlIBGWlmDkVbKqlIBGWlmDkRbKqlIBGWlmDkNbKqlIBGWlmDkJbKqlIBGWlmDkFbKqlIBGWlmDkBbKqlIBGWlmDj9bKqlIBGWlmDj5bKqlIBGWlmDj1bKqlIBGWlmDjxbKqlIBGWlmDjtbKqlIBGWlmDjpbKqlIBGWlmDjlbKqlIBGWlmDjhbKqlIBGWlmDjdbKqlIBGWlmDjZbKqlIBGWlmDjVbKqlIBGWlmDjRbKqlIBGWlmDjNbKqlIBGWlmDjJbKqlIBGWlmDjFbKqlIBGWlmDjBbKqlIBGWlmDi9bKqlIBGWlmDi5bKqlIBGWlmDi1bKqlIBGWlmDixbKqlIBGWlmDitbKqlIBGWlmDipbKqlIBGWlmDilbKqlIBGWlmDihbKqlIBGWlmDidbKqlIBGWlmDiZbKqlIBGWlmDiVbKqlIBGWlmDiRbKqlIBGWlmDiNbKqlIBGWlmDiJbKqlIBGWlmDiFbKqlIBGWlmDiBbKqlIBGWlmDh9bKqlIBGWlmDh5bKqlIBGWlmDh1bKqlIBGWlmDhxbKqlIBGWlmDhtbKqlIBGWlmDhpbKqlIBGWlmDhlbKqlIBGWlmDhhbKqlIBGWlmDhdbKqlIBGWlmDhZbKqlIBGWlmDhVbKqlIBGWlmDhRbKqlIBGWlmDhNbKqlIBGWlmDhJbKqlIBGWlmDhFbKqlIBGWlmDhBbKqlIBGWlmDg9bKqlIBGWlmDg5bKqlIBGWlmDg1bKqlIBGWlmDgxbKqlIBGWlmDgtbKqlIBGWlmDgpbKqlIBGWlmDglbKqlIBGWlmDghbKqlIBGWlmDgdbKqlIBGWlmDgZbKqlIBGWlmDgVbKqlIBGWlmDgRbKqlIBGWlmDgNbKqlIBGWlmDgJbKqlIBGWlmDgFbKqlIBGWlmDgBbKqlIBGWlmDf9bKqlIBGWlmDf5bKqlIBGWlmDf1bKqlIBGWlmDfxbKqlIBGWlmDftbKqlIBGWlmDfpbKqlIBGWlmDflbKqlIBGWlmDfhbKqlIBGWlmDfdbKqlIBGWlmDfZbKqlIBGWlmDfVbKqlIBGWlmDfRbKqlIBGWlmDfNbKqlIBGWlmDfJbKqlIBGWlmDfFbKqlIBGWlmDfBbKqlIBGWlmDe9bKqlIBGWlmDe5bKqlIBGWlmDe1bKqlIBGWlmDexbKqlIBGWlmDetbKqlIBGWlmDepbKqlIBGWlmDelbKqlIBGWlmDehbKqlIBGWlmDedbKqlIBGWlmDeZbKqlIBGWlmDeVbKqlIBGWlmDeRbKqlIBGWlmDeNbKqlIBGWlmDeJbKqlIBGWlmDeFbKqlIBGWlmDeBbKqlIBGWlmDd9bKqlIBGWlmDd5bKqlIBGWlmDd1bKqlIBGWlmDdxbKqlIBGWlmDdtbKqlIBGWlmDdpbKqlIBGWlmDdlbKqlIBGWlmDdhbKqlIBGWlmDddbKqlIBGWlmDdZbKqlIBGWlmDdVbKqlIBGWlmDdRbKqlIBGWlmDdNbKqlIBGWlmDdJbKqlIBGWlmDdFbKqlIBGWlmDdBbKqlIBGWlmDc9bKqlIBGWlmDc5bKqlIBGWlmDc1bKqlIBGWlmDcxbKqlIBGWlmDctbKqlIBGWlmDcpbKqlIBGWlmDclbKqlIBGWlmDchbKqlIBGWlmDcdbKqlIBGWlmDcZbKqlIBGWlmDcVbKqlIBGWlmDcRbKqlIBGWlmDcNbKqlIBGWlmDcJbKqlIBGWlmDcFbKqlIBGWlmDcBbKqlIBGWlmDb9bKqlIBGWlmDb5bKqlIBGWlmDb1bKqlIBGWlmDbxbKqlIBGWlmDbtbKqlIBGWlmDbpbKqlIBGWlmDblbKqlIBGWlmDbhbKqlIBGWlmDbdbKqlIBGWlmDbZbKqlIBGWlmDbVbKqlIBGWlmDbRbKqlIBGWlmDbNbKqlIBGWlmDbJbKqlIBGWlmDbFbKqlIBGWlmDbBbKqlIBGWlmDa9bKqlIBGWlmDa5bKqlIBGWlmDa1bKqlIBGWlmDaxbKqlIBGWlmDatbKqlIBGWlmDapbKqlIBGWlmDalbKqlIBGWlmDahbKqlIBGWlmDadbKqlIBGWlmDaZbKqlIBGWlmDaVbKqlIBGWlmDaRbKqlIBGWlmDaNbKqlIBGWlmDaJbKqlIBGWlmDaFbKqlIBGWlmDaBbKqlIBGWlmDZ9bKqlIBGWlmDZ5bKqlIBGWlmDZ1bKqlIBGWlmDZxbKqlIBGWlmDZtbKqlIBGWlmDZpbKqlIBGWlmDZlbKqlIBGWlmDZhbKqlIBGWlmDZdbKqlIBGWlmDZZbKqlIBGWlmDZVbKqlIBGWlmDZRbKqlIBGWlmDZNbKqlIBGWlmDZJbKqlIBGWlmDZFbKqlIBGWlmDZBbKqlIBGWlmDY9bKqlIBGWlmDY5bKqlIBGWlmDY1bKqlIBGWlmDYxbKqlIBGWlmDYtbKqlIBGWlmDYpbKqlIBGWlmDYlbKqlIBGWlmDYhbKqlIBGWlmDYdbKqlIBGWlmDYZbKqlIBGWlmDYVbKqlIBGWlmDYRbKqlIBGWlmDYNbKqlIBGWlmDYJbKqlIBGWlmDYFbKqlIBGWlmDYBbKqlIBGWlmDX9bKqlIBGWlmDX5bKqlIBGWlmDX1bKqlIBGWlmDXxbKqlIBGWlmDXtbKqlIBGWlmDXpbKqlIBGWlmDXlbKqlIBGWlmDXhbKqlIBGWlmDXdbKqlIBGWlmDXZbKqlIBGWlmDXVbKqlIBGWlmDXRbKqlIBGWlmDXNbKqlIBGWlmDXJbKqlIBGWlmDXFbKqlIBGWlmDXBbKqlIBGWlmDW9bKqlIBGWlmDW5bKqlIBGWlmDW1bKqlIBGWlmDWxbKqlIBGWlmDWtbKqlIBGWlmDWpbKqlIBGWlmDWlbKqlIBGWlmDWhbKqlIBGWlmDWdbKqlIBGWlmDWZbKqlIBGWlmDWVbKqlIBGWlmDWRbKqlIBGWlmDWNbKqlIBGWlmDWJbKqlIBGWlmDWFbKqlIBGWlmDWBbKqlIBGWlmDV9bKqlIBGWlmDV5bKqlIBGWlmDV1bKqlIBGWlmDVxbKqlIBGWlmDVtbKqlIBGWlmDVpbKqlIBGWlmDVlbKqlIBGWlmDVhbKqlIBGWlmDVdbKqlIBGWlmDVZbKqlIBGWlmDVVbKqlIBGWlmDVRbKqlIBGWlmDVNbKqlIBGWlmDVJbKqlIBGWlmDVFbKqlIBGWlmDVBbKqlIBGWlmDU9bKqlIBGWlmDU5bKqlIBGWlmDU1bKqlIBGWlmDUxbKqlIBGWlmDUtbKqlIBGWlmDUpbKqlIBGWlmDUlbKqlIBGWlmDUhbKqlIBGWlmDUdbKqlIBGWlmDUZbKqlIBGWlmDUVbKqlIBGWlmDURbKqlIBGWlmDUNbKqlIBGWlmDUJbKqlIBGWlmDUFbKqlIBGWlmDUBbKqlIBGWlmDT9bKqlIBGWlmDT5bKqlIBGWlmDT1bKqlIBGWlmDTxbKqlIBGWlmDTtbKqlIBGWlmDTpbKqlIBGWlmDTlbKqlIBGWlmDThbKqlIBGWlmDTdbKqlIBGWlmDTZbKqlIBGWlmDTVbKqlIBGWlmDTRbKqlIBGWlmDTNbKqlIBGWlmDTJbKqlIBGWlmDTFbKqlIBGWlmDTBbKqlIBGWlmDS9bKqlIBGWlmDS5bKqlIBGWlmDS1bKqlIBGWlmDSxbKqlIBGWlmDStbKqlIBGWlmDSpbKqlIBGWlmDSlbKqlIBGWlmDShbKqlIBGWlmDSdbKqlIBGWlmDSZbKqlIBGWlmDSVbKqlIBGWlmDSRbKqlIBGWlmDSNbKqlIBGWlmDSJbKqlIBGWlmDSFbKqlIBGWlmDSBbKqlIBGWlmDR9bKqlIBGWlmDR5bKqlIBGWlmDR1bKqlIBGWlmDRxbKqlIBGWlmDRtbKqlIBGWlmDRpbKqlIBGWlmDRlbKqlIBGWlmDRhbKqlIBGWlmDRdbKqlIBGWlmDRZbKqlIBGWlmDRVbKqlIBGWlmDRRbKqlIBGWlmDRNbKqlIBGWlmDRJbKqlIBGWlmDRFbKqlIBGWlmDRBbKqlIBGWlmDQ9bKqlIBGWlmDQ5bKqlIBGWlmDQ1bKqlIBGWlmDQxbKqlIBGWlmDQtbKqlIBGWlmDQpbKqlIBGWlmDQlbKqlIBGWlmDQhbKqlIBGWlmDQdbKqlIBGWlmDQZbKqlIBGWlmDQVbKqlIBGWlmDQRbKqlIBGWlmDQNbKqlIBGWlmDQJbKqlIBGWlmDQFbKqlIBGWlmDQBbKqlIBGWlmDP9bKqlIBGWlmDP5bKqlIBGWlmDP1bKqlIBGWlmDPxbKqlIBGWlmDPtbKqlIBGWlmDPpbKqlIBGWlmDPlbKqlIBGWlmDPhbKqlIBGWlmDPdbKqlIBGWlmDPZbKqlIBGWlmDPVbKqlIBGWlmDPRbKqlIBGWlmDPNbKqlIBGWlmDPJbKqlIBGWlmDPFbKqlIBGWlmDPBbKqlIBGWlmDO9bKqlIBGWlmDO5bKqlIBGWlmDO1bKqlIBGWlmDOxbKqlIBGWlmDOtbKqlIBGWlmDOpbKqlIBGWlmDOlbKqlIBGWlmDPhbKqlIBGWlmDOhbKqlIBGWlmDOdbKqlIBGWlmDOZbKqlIBGWlmDOVbKqlIBGWlmDORbKqlIBGWlmDONbKqlIBGWlmDOJbKqlIBGWlmDOFbKqlIBGWlmDOBbKqlIBGWlmDN9bKqlIBGWlmDN5bKqlIBGWlmDN1bKqlIBGWlmDNxbKqlIBGWlmDNtbKqlIBGWlmDNpbKqlIBGWlmDNlbKqlIBGWlmDNhbKqlIBGWlmDNdbKqlIBGWlmDNZbKqlIBGWlmDNVbKqlIBGWlmDNRbKqlIBGWlmDNNbKqlIBGWlmDNJbKqlIBGWlmDNFbKqlIBGWlmDNBbKqlIBGWlmDM9bKqlIBGWlmDM5bKqlIBGWlmDM1bKqlIBGWlmDMxbKqlIBGWlmDMtbKqlIBGWlmDMpbKqlIBGWlmDMlbKqlIBGWlmDMhbKqlIBGWlmDMdbKqlIBGWlmDMZbKqlIBGWlmDMVbKqlIBGWlmDMRbKqlIBGWlmDMNbKqlIBGWlmDMJbKqlIBGWlmDMFbKqlIBGWlmDMBbKqlIBGWlmDL9bKqlIBGWlmDL5bKqlIBGWlmDL1bKqlIBGWlmDLxbKqlIBGWlmDLtbKqlIBGWlmDLpbKqlIBGWlmDLlbKqlIBGWlmDLhbKqlIBGWlmDLdbKqlIBGWlmDLZbKqlIBGWlmDLVbKqlIBGWlmDLRbKqlIBGWlmDLNbKqlIBGWlmDLJbKqlIBGWlmDLFbKqlIBGWlmDLBbKqlIBGWlmDK9bKqlIBGWlmDK5bKqlIBGWlmDK1bKqlIBGWlmDKxbKqlIBGWlmDKtbKqlIBGWlmDKpbKqlIBGWlmDKlbKqlIBGWlmDKhbKqlIBGWlmDKdbKqlIBGWlmDKZbKqlIBGWlmDKVbKqlIBGWlmDKRbKqlIBGWlmDKNbKqlIBGWlmDKJbKqlIBGWlmDKFbKqlIBGWlmDKBbKqlIBGWlmDJ9bKqlIBGWlmDJ5bKqlIBGWlmDJ1bKqlIBGWlmDJxbKqlIBGWlmDJtbKqlIBGWlmDJpbKqlIBGWlmDJlbKqlIBGWlmDJhbKqlIBGWlmDJdbKqlIBGWlmDJZbKqlIBGWlmDJVbKqlIBGWlmDJRbKqlIBGWlmDJNbKqlIBGWlmDJJbKqlIBGWlmDJFbKqlIBGWlmDJBbKqlIBGWlmDI9bKqlIBGWlmDI5bKqlIBGWlmDI1bKqlIBGWlmDIxbKqlIBGWlmDItbKqlIBGWlmDIpbKqlIBGWlmDIlbKqlIBGWlmDIhbKqlIBGWlmDIdbKqlIBGWlmDIZbKqlIBGWlmDIVbKqlIBGWlmDIRbKqlIBGWlmDINbKqlIBGWlmDIJbKqlIBGWlmDIFbKqlIBGWlmDIBbKqlIBGWlmDH9bKqlIBGWlmDH5bKqlIBGWlmDH1bKqlIBGWlmDHxbKqlIBGWlmDHtbKqlIBGWlmDHpbKqlIBGWlmDHlbKqlIBGWlmDHhbKqlIBGWlmDHdbKqlIBGWlmDHZbKqlIBGWlmDHVbKqlIBGWlmDHRbKqlIBGWlmDHNbKqlIBGWlmDHJbKqlIBGWlmDHFbKqlIBGWlmDHBbKqlIBGWlmDG9bKqlIBGWlmDG5bKqlIBGWlmDG1bKqlIBGWlmDGxbKqlIBGWlmDGtbKqlIBGWlmDGpbKqlIBGWlmDGlbKqlIBGWlmDGhbKqlIBGWlmDGdbKqlIBGWlmDGZbKqlIBGWlmDGVbKqlIBGWlmDGRbKqlIBGWlmDGNbKqlIBGWlmDGJbKqlIBGWlmDGFbKqlIBGWlmDGBbKqlIBGWlmDF9bKqlIBGWlmDF5bKqlIBGWlmDF1bKqlIBGWlmDFxbKqlIBGWlmDFtbKqlIBGWlmDFpbKqlIBGWlmDFlbKqlIBGWlmDFhbKqlIBGWlmDFdbKqlIBGWlmDFZbKqlIBGWlmDFVbKqlIBGWlmDFRbKqlIBGWlmDFNbKqlIBGWlmDFJbKqlIBGWlmDFFbKqlIBGWlmDFBbKqlIBGWlmDE9bKqlIBGWlmDE5bKqlIBGWlmDE1bKqlIBGWlmDExbKqlIBGWlmDEtbKqlIBGWlmDEpbKqlIBGWlmDElbKqlIBGWlmDEhbKqlIBGWlmDEdbKqlIBGWlmDEZbKqlIBGWlmDEVbKqlIBGWlmDERbKqlIBGWlmDENbKqlIBGWlmDEJbKqlIBGWlmDEFbKqlIBGWlmDEBbKqlIBGWlmDD9bKqlIBGWlmDD5bKqlIBGWlmDD1bKqlIBGWlmDDxbKqlIBGWlmDDtbKqlIBGWlmDDpbKqlIBGWlmDDlbKqlIBGWlmDDhbKqlIBGWlmDDdbKqlIBGWlmDDZbKqlIBGWlmDDVbKqlIBGWlmDDRbKqlIBGWlmDDNbKqlIBGWlmDDJbKqlIBGWlmDDFbKqlIBGWlmDDBbKqlIBGWlmDC9bKqlIBGWlmDC5bKqlIBGWlmDC1bKqlIBGWlmDCxbKqlIBGWlmDCtbKqlIBGWlmDCpbKqlIBGWlmDClbKqlIBGWlmDChbKqlIBGWlmDCdbKqlIBGWlmDCZbKqlIBGWlmDCVbKqlIBGWlmDCRbKqlIBGWlmDCNbKqlIBGWlmDCJbKqlIBGWlmDCFbKqlIBGWlmDCBbKqlIBGWlmDB9bKqlIBGWlmDB5bKqlIBGWlmDB1bKqlIBGWlmDBxbKqlIBGWlmDBtbKqlIBGWlmDBpbKqlIBGWlmDBlbKqlIBGWlmDBhbKqlIBGWlmDBdbKqlIBGWlmDBZbKqlIBGWlmDBVbKqlIBGWlmDBRbKqlIBGWlmDBNbKqlIBGWlmDBJbKqlIBGWlmDBFbKqlIBGWlmDBBbKqlIBGWlmDA9bKqlIBGWlmDA5bKqlIBGWlmDA1bKqlIBGWlmDAxbKqlIBGWlmDAtbKqlIBGWlmDApbKqlIBGWlmDAlbKqlIBGWlmDAhbKqlIBGWlmDAdbKqlIBGWlmDAZbKqlIBGWlmDAVbKqlIBGWlmDARbKqlIBGWlmDANbKqlIBGWlmDAJbKqlIBGWlmDAFbKqlIBGWlmDABbKqlIBGWlmC/9bKqlIBGWlmC/5bKqlIBGWlmC/1bKqlIBGWlmC/xbKqlIBGWlmC/tbKqlIBGWlmC/pbKqlIBGWlmC/lbKqlIBGWlmC/hbKqlIBGWlmC/dbKqlIBGWlmC/ZbKqlIBGWlmC/VbKqlIBGWlmC/RbKqlIBGWlmC/NbKqlIBGWlmC/JbKqlIBGWlmC/FbKqlIBGWlmC/BbKqlIBGWlmC+9bKqlIBGWlmC+5bKqlIBGWlmC+1bKqlIBGWlmC+xbKqlIBGWlmC+tbKqlIBGWlmC+pbKqlIBGWlmC+lbKqlIBGWlmC+hbKqlIBGWlmC+dbKqlIBGWlmC+ZbKqlIBGWlmC+VbKqlIBGWlmC+RbKqlIBGWlmC+NbKqlIBGWlmC+JbKqlIBGWlmC+FbKqlIBGWlmC+BbKqlIBGWlmC99bKqlIBGWlmC95bKqlIBGWlmC91bKqlIBGWlmC9xbKqlIBGWlmC9tbKqlIBGWlmC9pbKqlIBGWlmC9lbKqlIBGWlmC9hbKqlIBGWlmC9dbKqlIBGWlmC9ZbKqlIBGWlmC9VbKqlIBGWlmC9RbKqlIBGWlmC9NbKqlIBGWlmC9JbKqlIBGWlmC9FbKqlIBGWlmC9BbKqlIBGWlmC89bKqlIBGWlmC85bKqlIBGWlmC81bKqlIBGWlmC8xbKqlIBGWlmC8tbKqlIBGWlmC8pbKqlIBGWlmC8lbKqlIBGWlmC8hbKqlIBGWlmC8dbKqlIBGWlmC8ZbKqlIBGWlmC8VbKqlIBGWlmC8RbKqlIBGWlmC8NbKqlIBGWlmC8JbKqlIBGWlmC8FbKqlIBGWlmC8BbKqlIBA==" 
+        src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleE4jCXvLt7eJYkw9MYa5wLfNYGdDOnLPu66ncmJKQn/cv7G0jHRUT1SPtK2qg2ZcX2aIs6mpeW1oZYazqamCa29ocYayqKmCbXJpdImzqKmCb3VzdYq0qamDcnd3d4q1qamDc3h4eIm2qamDdHl5eIm3qamDdXp6eIi4qamDdnt7eIi5qamDeHx8eIe6qamDeX19eIe7qamDen5+eIe8qamDfX9/eIi9qamDgIB/eYm+qamDgYCAeYnAqamDgoGAeIm/qamDg4KBeYq/qamEhIOBeou/qamEhYSBeoy/qamEhYWBeYzAqamEhoWBeI3AqamEh4aBeI3AqamEiIeBeI7AqamEiYiBeI7AqamEiomJeI/AqamEi4mJeI/AqamEjIqJeZDAqamEjYuJeZDAqamDjouJeZHAqamDj4yJeZHBAqamDkI2KeZHBAqamDkY6KeZHBAamnDko+LeZHBAamnDk5DLepHBAamnDk9ELepHBAGlnDlBFLupHBAGlnDlJGLupIBAGlnDlNHLupIBAGlnDlRILupIBAGlnDlVJLupIBAGlnDlZKLupIBAGlnDldLLupIBAGlnDlhMLupIBAGlnDllNLupIBAGlnDlpOLupIBAGlnDltPLupIBAGlnDlxQLupIBAGlnDl1RLupIBAGlnDl5SLupIBAGlnDl9TLupIBAGlnDmBULupIBAGlnDmFVLupIBAGlnDmJWLupIBAGlnDmNXLupIBAGlnDmRYLupIBAGlnDmVZLupIBAGlnDmZaLupIBAGlnDmdbLupIBAGlnDmhcLupIBAGlnDmldLupIBAGlnDmpdLulIBAGlnDmtcLulIBAGlnDmxcLulIBAGlnDm1cLulIBAGlnDm5bLulIBAGlnDm9bLulIBAGlnDnBbLulIBAGlnDnFbLelIBAGlnDnJbLelIBGGlnDnNbLelIBGGlnDnRbLelIBGGlnDnVbLelIBGGlnDnZbLelIBGGlnDndbLelIBGGlnDnhbLelIBGGlnDnlbLelIBGGlnDnpbLelIBGGlnDntbLelIBGGlnDnxbLelIBGGlnDn1bLelIBGGlnDn5bLelIBGGlnDn9bLelIBGGlmDn9bKqlIBGGlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn9bKqlIBGWlmDn5bKqlIBGWlmDn1bKqlIBGWlmDnxbKqlIBGWlmDntbKqlIBGWlmDnpbKqlIBGWlmDnlbKqlIBGWlmDnhbKqlIBGWlmDndbKqlIBGWlmDnZbKqlIBGWlmDnVbKqlIBGWlmDnRbKqlIBGWlmDnNbKqlIBGWlmDnJbKqlIBGWlmDnFbKqlIBGWlmDnBbKqlIBGWlmDm9bKqlIBGWlmDm5bKqlIBGWlmDm1bKqlIBGWlmDmxbKqlIBGWlmDmtbKqlIBGWlmDmpbKqlIBGWlmDmdbKqlIBGWlmDmZbKqlIBGWlmDmVbKqlIBGWlmDmRbKqlIBGWlmDmNbKqlIBGWlmDmJbKqlIBGWlmDmFbKqlIBGWlmDmBbKqlIBGWlmDl9bKqlIBGWlmDl5bKqlIBGWlmDl1bKqlIBGWlmDlxbKqlIBGWlmDltbKqlIBGWlmDlpbKqlIBGWlmDllbKqlIBGWlmDlhbKqlIBGWlmDldbKqlIBGWlmDlZbKqlIBGWlmDlVbKqlIBGWlmDlRbKqlIBGWlmDlNbKqlIBGWlmDlJbKqlIBGWlmDlFbKqlIBGWlmDlBbKqlIBGWlmDk9bKqlIBGWlmDk5bKqlIBGWlmDk1bKqlIBGWlmDktbKqlIBGWlmDkpbKqlIBGWlmDklbKql"
         preload="auto"
       />
 
@@ -184,7 +169,7 @@ export function PatientBoard() {
             transition={{ delay: 0.2 }}
           >
             <div className="flex items-center gap-3 bg-slate-800/50 rounded-full px-6 py-3">
-              <Clock className="h-7 w-7 text-accent-400" />
+              <Clock className="h-7 w-7 text-teal-400" />
               <span className="font-mono tabular-nums">
                 {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
@@ -244,7 +229,7 @@ export function PatientBoard() {
               }}
             >
               <AnimatePresence mode="popLayout">
-                {records.map((record, index) => (
+                {records.map((record) => (
                   <motion.div
                     key={record.id}
                     layout
@@ -262,7 +247,6 @@ export function PatientBoard() {
                       }
                     }}
                     exit={{ opacity: 0, scale: 0.8, y: -50 }}
-                    className="group relative"
                   >
                     <motion.div
                       className="overflow-hidden rounded-3xl bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 p-8 shadow-2xl relative"
@@ -278,13 +262,12 @@ export function PatientBoard() {
                         duration: 2,
                         ease: 'easeInOut'
                       }}
-                      whileHover={{ scale: 1.02 }}
                     >
                       <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
                       <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/5" />
                       <div className="absolute top-4 right-4 h-16 w-16 rounded-full bg-white/5" />
                       
-                      <div className="relative">
+                      <div className="relative text-center">
                         <motion.div
                           animate={{ 
                             scale: [1, 1.15, 1],
@@ -323,15 +306,6 @@ export function PatientBoard() {
                             {message}
                           </p>
                         </motion.div>
-                        
-                        <motion.button
-                          onClick={() => handleComplete(record.id)}
-                          className="mt-4 w-full rounded-xl bg-white/10 py-2.5 text-sm text-white/70 transition-colors hover:bg-white/25 hover:text-white backdrop-blur-sm"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                        >
-                          Mark as Picked Up
-                        </motion.button>
                       </div>
                     </motion.div>
                   </motion.div>
