@@ -10,13 +10,12 @@
     "db:seed": "tsx lib/seed.ts"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
+    "@neondatabase/serverless": "^1.0.2",
     "@types/lodash": "^4.17.23",
     "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.24",
-    "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

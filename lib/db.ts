@@ -1,25 +1,34 @@
-import Database from 'better-sqlite3'
-import path from 'path'
-import { Patient, WaiterRecord, Settings, AuditLog, DEFAULT_SETTINGS, OrderType } from './types'
+import { neon } from '@neondatabase/serverless'
+import { Patient, WaiterRecord, DEFAULT_SETTINGS, OrderType } from './types'
 
-const dbPath = path.join(process.cwd(), 'pharmacy.db')
-const db = new Database(dbPath)
+const getDb = () => neon(process.env.DATABASE_URL!)
 
-db.pragma('journal_mode = WAL')
+let initialized = false
+let initPromise: Promise<void> | null = null
 
-export function initializeDatabase() {
-  db.exec(`
+export async function initializeDatabase() {
+  if (initialized) return
+  if (initPromise) return initPromise
+  initPromise = _initDb()
+  await initPromise
+  initialized = true
+}
+
+async function _initDb() {
+  const sql = getDb()
+  await sql`
     CREATE TABLE IF NOT EXISTS patients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       mrn TEXT UNIQUE NOT NULL,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       dob TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS waiter_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       mrn TEXT NOT NULL,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
@@ -28,276 +37,237 @@ export function initializeDatabase() {
       comments TEXT DEFAULT '',
       initials TEXT NOT NULL,
       order_type TEXT DEFAULT 'waiter',
-      due_time DATETIME NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      printed INTEGER DEFAULT 0,
-      ready INTEGER DEFAULT 0,
-      ready_at DATETIME,
-      completed INTEGER DEFAULT 0
-    );
-
+      due_time TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      printed BOOLEAN DEFAULT FALSE,
+      ready BOOLEAN DEFAULT FALSE,
+      ready_at TIMESTAMPTZ,
+      completed BOOLEAN DEFAULT FALSE
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      record_id INTEGER NOT NULL,
+      id SERIAL PRIMARY KEY,
+      record_id INTEGER,
       action TEXT NOT NULL,
       old_values TEXT,
       new_values TEXT,
       staff_initials TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `)
-}
-
-export function getSetting(key: string): string | null {
-  const stmt = db.prepare('SELECT value FROM settings WHERE key = ?')
-  const row = stmt.get(key) as { value: string } | undefined
-  return row?.value ?? null
-}
-
-export function setSetting(key: string, value: string): void {
-  const stmt = db.prepare(`
-    INSERT INTO settings (key, value, updated_at) 
-    VALUES (?, ?, datetime('now'))
-    ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-  `)
-  stmt.run(key, value, value)
-}
-
-export function getAllSettings(): Settings {
-  const settings = { ...DEFAULT_SETTINGS }
-  const stmt = db.prepare('SELECT key, value FROM settings')
-  const rows = stmt.all() as { key: string; value: string }[]
-  
-  for (const row of rows) {
-    const key = row.key as keyof Settings
-    if (key in settings) {
-      const value = row.value
-      if (typeof DEFAULT_SETTINGS[key] === 'number') {
-        (settings as Record<string, unknown>)[key] = parseInt(value, 10)
-      } else if (typeof DEFAULT_SETTINGS[key] === 'boolean') {
-        (settings as Record<string, unknown>)[key] = value === 'true'
-      } else {
-        (settings as Record<string, unknown>)[key] = value
-      }
-    }
+      timestamp TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  // Insert default settings
+  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+    await sql`
+      INSERT INTO settings (key, value)
+      VALUES (${key}, ${JSON.stringify(value)})
+      ON CONFLICT (key) DO NOTHING
+    `
   }
-  
+  // Seed patients if empty
+  const count = await sql`SELECT COUNT(*) as cnt FROM patients`
+  if (Number((count[0] as any).cnt) === 0) {
+    await seedPatients()
+  }
+}
+
+async function seedPatients() {
+  const sql = getDb()
+  const patients = [
+    { mrn: 'MRN-10001', first_name: 'James', last_name: 'Anderson', dob: '1965-03-14' },
+    { mrn: 'MRN-10002', first_name: 'Maria', last_name: 'Rodriguez', dob: '1978-07-22' },
+    { mrn: 'MRN-10003', first_name: 'Robert', last_name: 'Thompson', dob: '1952-11-08' },
+    { mrn: 'MRN-10004', first_name: 'Patricia', last_name: 'Williams', dob: '1983-04-30' },
+    { mrn: 'MRN-10005', first_name: 'Michael', last_name: 'Johnson', dob: '1970-09-17' },
+    { mrn: 'MRN-10006', first_name: 'Linda', last_name: 'Brown', dob: '1961-12-05' },
+    { mrn: 'MRN-10007', first_name: 'David', last_name: 'Garcia', dob: '1988-02-28' },
+    { mrn: 'MRN-10008', first_name: 'Barbara', last_name: 'Martinez', dob: '1975-06-19' },
+    { mrn: 'MRN-10009', first_name: 'William', last_name: 'Davis', dob: '1945-08-11' },
+    { mrn: 'MRN-10010', first_name: 'Susan', last_name: 'Wilson', dob: '1990-01-23' },
+    { mrn: 'MRN-10011', first_name: 'Richard', last_name: 'Miller', dob: '1967-05-16' },
+    { mrn: 'MRN-10012', first_name: 'Nancy', last_name: 'Taylor', dob: '1982-10-07' },
+    { mrn: 'MRN-10013', first_name: 'Thomas', last_name: 'Moore', dob: '1955-03-29' },
+    { mrn: 'MRN-10014', first_name: 'Karen', last_name: 'Jackson', dob: '1979-08-14' },
+    { mrn: 'MRN-10015', first_name: 'Charles', last_name: 'Harris', dob: '1963-11-01' },
+    { mrn: 'MRN-10016', first_name: 'Betty', last_name: 'White', dob: '1993-07-08' },
+    { mrn: 'MRN-10017', first_name: 'Christopher', last_name: 'Martin', dob: '1971-04-25' },
+    { mrn: 'MRN-10018', first_name: 'Sandra', last_name: 'Thompson', dob: '1986-09-12' },
+    { mrn: 'MRN-10019', first_name: 'Daniel', last_name: 'Lee', dob: '1948-02-18' },
+    { mrn: 'MRN-10020', first_name: 'Ashley', last_name: 'Clark', dob: '1995-06-03' },
+  ]
+  for (const p of patients) {
+    await sql`
+      INSERT INTO patients (mrn, first_name, last_name, dob)
+      VALUES (${p.mrn}, ${p.first_name}, ${p.last_name}, ${p.dob})
+      ON CONFLICT (mrn) DO NOTHING
+    `
+  }
+}
+
+export async function getPatientByMRN(mrn: string): Promise<Patient | null> {
+  const sql = getDb()
+  const rows = await sql`SELECT * FROM patients WHERE mrn = ${mrn} LIMIT 1`
+  return (rows[0] as Patient) ?? null
+}
+
+export async function getProductionRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE completed = FALSE
+    ORDER BY due_time ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getRecord(id: number): Promise<WaiterRecord | null> {
+  const sql = getDb()
+  const rows = await sql`SELECT * FROM waiter_records WHERE id = ${id} LIMIT 1`
+  return (rows[0] as WaiterRecord) ?? null
+}
+
+export async function getActiveRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE ready = FALSE AND completed = FALSE
+    ORDER BY due_time ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getReadyWaiterRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const cutoff = new Date(Date.now() - 45 * 60 * 1000).toISOString()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE ready = TRUE
+      AND completed = FALSE
+      AND order_type = 'waiter'
+      AND (ready_at IS NULL OR ready_at > ${cutoff}::timestamptz)
+    ORDER BY ready_at ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function createRecord(data: {
+  mrn: string
+  first_name: string
+  last_name: string
+  dob: string
+  num_prescriptions: number
+  comments: string
+  initials: string
+  order_type: OrderType
+  due_time: string
+}): Promise<WaiterRecord> {
+  const sql = getDb()
+  const rows = await sql`
+    INSERT INTO waiter_records (mrn, first_name, last_name, dob, num_prescriptions, comments, initials, order_type, due_time)
+    VALUES (${data.mrn}, ${data.first_name}, ${data.last_name}, ${data.dob}, ${data.num_prescriptions}, ${data.comments}, ${data.initials}, ${data.order_type}, ${data.due_time}::timestamptz)
+    RETURNING *
+  `
+  const record = rows[0] as WaiterRecord
+  await logAudit(record.id, 'CREATE', null, record, data.initials)
+  return record
+}
+
+export async function updateRecord(
+  id: number,
+  updates: {
+    comments?: string
+    initials?: string
+    num_prescriptions?: number
+    printed?: boolean
+    ready?: boolean
+    completed?: boolean
+  },
+  staffInitials?: string
+): Promise<WaiterRecord | null> {
+  const sql = getDb()
+  const existing = await sql`SELECT * FROM waiter_records WHERE id = ${id}`
+  if (!existing[0]) return null
+  const old = existing[0]
+
+  // Build update with explicit cases to keep type safety
+  let rows: any[]
+
+  if (updates.ready === true) {
+    rows = await sql`
+      UPDATE waiter_records SET
+        comments = COALESCE(${updates.comments ?? null}, comments),
+        initials = COALESCE(${updates.initials ?? null}, initials),
+        num_prescriptions = COALESCE(${updates.num_prescriptions ?? null}, num_prescriptions),
+        printed = COALESCE(${updates.printed ?? null}, printed),
+        ready = TRUE,
+        ready_at = NOW(),
+        completed = COALESCE(${updates.completed ?? null}, completed)
+      WHERE id = ${id}
+      RETURNING *
+    `
+  } else {
+    rows = await sql`
+      UPDATE waiter_records SET
+        comments = COALESCE(${updates.comments ?? null}, comments),
+        initials = COALESCE(${updates.initials ?? null}, initials),
+        num_prescriptions = COALESCE(${updates.num_prescriptions ?? null}, num_prescriptions),
+        printed = COALESCE(${updates.printed ?? null}, printed),
+        ready = COALESCE(${updates.ready ?? null}, ready),
+        completed = COALESCE(${updates.completed ?? null}, completed)
+      WHERE id = ${id}
+      RETURNING *
+    `
+  }
+
+  const updated = rows[0] as WaiterRecord
+  await logAudit(id, 'UPDATE', old, updated, staffInitials)
+  return updated
+}
+
+export async function deleteRecord(id: number): Promise<boolean> {
+  const sql = getDb()
+  const rows = await sql`DELETE FROM waiter_records WHERE id = ${id} RETURNING id`
+  return rows.length > 0
+}
+
+export async function getSettings(): Promise<Record<string, any>> {
+  const sql = getDb()
+  const rows = await sql`SELECT key, value FROM settings`
+  const settings: Record<string, any> = { ...DEFAULT_SETTINGS }
+  for (const row of rows as any[]) {
+    try { settings[row.key] = JSON.parse(row.value) } catch { settings[row.key] = row.value }
+  }
   return settings
 }
 
-export function updateSettings(newSettings: Partial<Settings>): void {
-  for (const [key, value] of Object.entries(newSettings)) {
-    setSetting(key, String(value))
+export async function updateSettings(updates: Record<string, any>): Promise<void> {
+  const sql = getDb()
+  for (const [key, value] of Object.entries(updates)) {
+    await sql`
+      INSERT INTO settings (key, value, updated_at)
+      VALUES (${key}, ${JSON.stringify(value)}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `
   }
 }
 
-export function searchPatientsByMRN(mrn: string): Patient | null {
-  const stmt = db.prepare('SELECT * FROM patients WHERE mrn = ?')
-  return stmt.get(mrn) as Patient | undefined ?? null
+export async function getAuditLog(limit = 100): Promise<any[]> {
+  const sql = getDb()
+  const rows = await sql`SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ${limit}`
+  return rows as any[]
 }
 
-export function getAllPatients(): Patient[] {
-  const stmt = db.prepare('SELECT * FROM patients ORDER BY last_name')
-  return stmt.all() as Patient[]
-}
-
-export function createPatient(patient: Omit<Patient, 'id' | 'created_at'>): Patient {
-  const stmt = db.prepare(`
-    INSERT INTO patients (mrn, first_name, last_name, dob)
-    VALUES (?, ?, ?, ?)
-  `)
-  const result = stmt.run(patient.mrn, patient.first_name, patient.last_name, patient.dob)
-  return {
-    id: result.lastInsertRowid as number,
-    ...patient,
-    created_at: new Date().toISOString(),
-  }
-}
-
-export function getAllWaiterRecords(): WaiterRecord[] {
-  const stmt = db.prepare(`
-    SELECT * FROM waiter_records 
-    WHERE completed = 0 
-    ORDER BY due_time ASC
-  `)
-  const rows = stmt.all() as Record<string, unknown>[]
-  return rows.map((row) => ({
-    ...row,
-    printed: !!row.printed,
-    ready: !!row.ready,
-    completed: !!row.completed,
-  })) as WaiterRecord[]
-}
-
-export function getProductionBoardRecords(): WaiterRecord[] {
-  const stmt = db.prepare(`
-    SELECT * FROM waiter_records 
-    WHERE completed = 0 AND ready = 0
-    ORDER BY due_time ASC
-  `)
-  const rows = stmt.all() as Record<string, unknown>[]
-  return rows.map((row) => ({
-    ...row,
-    printed: !!row.printed,
-    ready: !!row.ready,
-    completed: !!row.completed,
-  })) as WaiterRecord[]
-}
-
-export function getPatientBoardRecords(): WaiterRecord[] {
-  const settings = getAllSettings()
-  const stmt = db.prepare(`
-    SELECT * FROM waiter_records 
-    WHERE completed = 0 AND ready = 1 AND order_type = 'waiter'
-    AND ready_at > datetime('now', '-${settings.auto_clear_minutes} minutes')
-    ORDER BY ready_at DESC
-  `)
-  const rows = stmt.all() as Record<string, unknown>[]
-  return rows.map((row) => ({
-    ...row,
-    printed: !!row.printed,
-    ready: !!row.ready,
-    completed: !!row.completed,
-  })) as WaiterRecord[]
-}
-
-export function getWaiterRecord(id: number): WaiterRecord | null {
-  const stmt = db.prepare('SELECT * FROM waiter_records WHERE id = ?')
-  const row = stmt.get(id) as Record<string, unknown> | undefined
-  if (!row) return null
-  return {
-    ...row,
-    printed: !!row.printed,
-    ready: !!row.ready,
-    completed: !!row.completed,
-  } as WaiterRecord
-}
-
-export function createWaiterRecord(record: Omit<WaiterRecord, 'id' | 'created_at' | 'printed' | 'ready' | 'ready_at' | 'completed'>): WaiterRecord {
-  const stmt = db.prepare(`
-    INSERT INTO waiter_records (
-      mrn, first_name, last_name, dob, num_prescriptions, comments, initials,
-      order_type, due_time
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-  const result = stmt.run(
-    record.mrn,
-    record.first_name,
-    record.last_name,
-    record.dob,
-    record.num_prescriptions,
-    record.comments,
-    record.initials,
-    record.order_type,
-    record.due_time
-  )
-  
-  addAuditLog(result.lastInsertRowid as number, 'create', null, JSON.stringify(record), record.initials)
-  
-  return getWaiterRecord(result.lastInsertRowid as number)!
-}
-
-export function updateWaiterRecord(id: number, updates: Partial<WaiterRecord>, initials?: string): WaiterRecord | null {
-  const oldRecord = getWaiterRecord(id)
-  if (!oldRecord) return null
-  
-  const fields: string[] = []
-  const values: unknown[] = []
-  
-  if (updates.comments !== undefined) {
-    fields.push('comments = ?')
-    values.push(updates.comments)
-  }
-  if (updates.initials !== undefined) {
-    fields.push('initials = ?')
-    values.push(updates.initials)
-  }
-  if (updates.printed !== undefined) {
-    fields.push('printed = ?')
-    values.push(updates.printed ? 1 : 0)
-  }
-  if (updates.ready !== undefined) {
-    fields.push('ready = ?')
-    values.push(updates.ready ? 1 : 0)
-    if (updates.ready) {
-      fields.push('ready_at = datetime("now")')
-    }
-  }
-  if (updates.completed !== undefined) {
-    fields.push('completed = ?')
-    values.push(updates.completed ? 1 : 0)
-  }
-  
-  if (fields.length === 0) return oldRecord
-  
-  values.push(id)
-  const stmt = db.prepare(`UPDATE waiter_records SET ${fields.join(', ')} WHERE id = ?`)
-  stmt.run(...values)
-  
-  addAuditLog(id, 'update', JSON.stringify(oldRecord), JSON.stringify(updates), initials)
-  
-  return getWaiterRecord(id)
-}
-
-export function deleteWaiterRecord(id: number, initials?: string): boolean {
-  const record = getWaiterRecord(id)
-  if (!record) return false
-  
-  addAuditLog(id, 'delete', JSON.stringify(record), null, initials)
-  
-  const stmt = db.prepare('DELETE FROM waiter_records WHERE id = ?')
-  const result = stmt.run(id)
-  return result.changes > 0
-}
-
-export function addAuditLog(recordId: number, action: string, oldValues: string | null, newValues: string | null, initials?: string): void {
-  const stmt = db.prepare(`
+async function logAudit(recordId: number, action: string, oldValues: any, newValues: any, initials?: string) {
+  const sql = getDb()
+  await sql`
     INSERT INTO audit_log (record_id, action, old_values, new_values, staff_initials)
-    VALUES (?, ?, ?, ?, ?)
-  `)
-  stmt.run(recordId, action, oldValues, newValues, initials ?? null)
+    VALUES (${recordId}, ${action}, ${oldValues ? JSON.stringify(oldValues) : null}, ${newValues ? JSON.stringify(newValues) : null}, ${initials ?? null})
+  `
 }
-
-export function getAuditLog(limit = 100): AuditLog[] {
-  const stmt = db.prepare(`
-    SELECT * FROM audit_log 
-    ORDER BY timestamp DESC 
-    LIMIT ?
-  `)
-  return stmt.all(limit) as AuditLog[]
-}
-
-export function calculateDueTime(orderType: OrderType): string {
-  const settings = getAllSettings()
-  const minutes = orderType === 'waiter' 
-    ? settings.waiter_due_minutes 
-    : orderType === 'acute' 
-      ? settings.acute_due_minutes 
-      : settings.urgent_due_minutes
-  
-  const stmt = db.prepare(`SELECT datetime('now', '+${minutes} minutes') as due_time`)
-  const result = stmt.get() as { due_time: string }
-  return result.due_time
-}
-
-export function cleanupOldRecords(): void {
-  const settings = getAllSettings()
-  db.prepare(`
-    UPDATE waiter_records 
-    SET completed = 1 
-    WHERE ready = 1 
-    AND order_type = 'waiter'
-    AND ready_at < datetime('now', '-${settings.auto_clear_minutes} minutes')
-    AND completed = 0
-  `).run()
-}
-
-initializeDatabase()
-
-export default db

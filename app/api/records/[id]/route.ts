@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getWaiterRecord, updateWaiterRecord, deleteWaiterRecord } from '@/lib/db'
+import { initializeDatabase, getRecord, updateRecord, deleteRecord } from '@/lib/db'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await initializeDatabase()
     const { id } = await params
-    const record = getWaiterRecord(parseInt(id, 10))
-    
-    if (!record) {
-      return NextResponse.json({ error: 'Record not found' }, { status: 404 })
-    }
-    
+    const record = await getRecord(parseInt(id, 10))
+    if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
     return NextResponse.json(record)
   } catch (error) {
     console.error('Error fetching record:', error)
@@ -25,20 +22,18 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await initializeDatabase()
     const { id } = await params
     const body = await request.json()
-    const { comments, initials, printed, ready, completed } = body
-    
-    const record = updateWaiterRecord(
+    const { comments, initials, num_prescriptions, printed, ready, completed } = body
+
+    const record = await updateRecord(
       parseInt(id, 10),
-      { comments, initials, printed, ready, completed },
+      { comments, initials, num_prescriptions, printed, ready, completed },
       initials
     )
-    
-    if (!record) {
-      return NextResponse.json({ error: 'Record not found' }, { status: 404 })
-    }
-    
+
+    if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
     return NextResponse.json(record)
   } catch (error) {
     console.error('Error updating record:', error)
@@ -47,17 +42,14 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await initializeDatabase()
     const { id } = await params
-    const success = deleteWaiterRecord(parseInt(id, 10))
-    
-    if (!success) {
-      return NextResponse.json({ error: 'Record not found' }, { status: 404 })
-    }
-    
+    const success = await deleteRecord(parseInt(id, 10))
+    if (!success) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting record:', error)

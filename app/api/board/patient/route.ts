@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getPatientBoardRecords, cleanupOldRecords } from '@/lib/db'
+import { initializeDatabase, getReadyWaiterRecords } from '@/lib/db'
 
 export async function GET() {
   try {
-    cleanupOldRecords()
-    const records = getPatientBoardRecords()
+    await initializeDatabase()
+    const records = await getReadyWaiterRecords()
     return NextResponse.json(records)
   } catch (error) {
     console.error('Error fetching patient board:', error)

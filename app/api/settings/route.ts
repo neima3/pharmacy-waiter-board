@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAllSettings, updateSettings } from '@/lib/db'
-import { Settings } from '@/lib/types'
+import { initializeDatabase, getSettings, updateSettings } from '@/lib/db'
 
 export async function GET() {
   try {
-    const settings = getAllSettings()
+    await initializeDatabase()
+    const settings = await getSettings()
     return NextResponse.json(settings)
   } catch (error) {
     console.error('Error fetching settings:', error)
@@ -14,9 +14,10 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json() as Partial<Settings>
-    updateSettings(body)
-    const settings = getAllSettings()
+    await initializeDatabase()
+    const body = await request.json()
+    await updateSettings(body)
+    const settings = await getSettings()
     return NextResponse.json(settings)
   } catch (error) {
     console.error('Error updating settings:', error)

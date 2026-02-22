@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { OrderType } from './types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -58,6 +59,13 @@ export function formatTimeRemaining(dueTime: string): string {
 
 export function getElapsedMinutes(createdAt: string): number {
   return Math.floor((Date.now() - Date.parse(createdAt)) / 60000)
+}
+
+export function calculateDueTime(orderType: OrderType): string {
+  const now = new Date()
+  const minutes = orderType === 'waiter' ? 30 : 60
+  now.setMinutes(now.getMinutes() + minutes)
+  return now.toISOString()
 }
 
 export function getOrderTypeLabel(orderType: string): string {
