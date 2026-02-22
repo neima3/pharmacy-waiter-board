@@ -34,7 +34,7 @@ export function PatientBoard() {
       const recordsData = await recordsRes.json()
       const settingsData = await settingsRes.json()
       
-      const newRecordIds = new Set(recordsData.map((r: WaiterRecord) => r.id))
+      const newRecordIds = new Set<number>(recordsData.map((r: WaiterRecord) => r.id))
       const trulyNewRecords = recordsData.filter(
         (r: WaiterRecord) => !prevRecordIds.has(r.id) && !newRecordIdsRef.current.has(r.id)
       )
