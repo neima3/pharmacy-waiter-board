@@ -25,11 +25,11 @@ export async function PUT(
     await initializeDatabase()
     const { id } = await params
     const body = await request.json()
-    const { comments, initials, num_prescriptions, printed, ready, completed } = body
+    const { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed } = body
 
     const record = await updateRecord(
       parseInt(id, 10),
-      { comments, initials, num_prescriptions, printed, ready, completed },
+      { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed },
       initials
     )
 

@@ -1,7 +1,18 @@
 import { neon } from '@neondatabase/serverless'
 import { Patient, WaiterRecord, DEFAULT_SETTINGS, OrderType } from './types'
 
-const getDb = () => neon(process.env.DATABASE_URL!)
+let sqlInstance: ReturnType<typeof neon> | null = null
+
+const getDb = () => {
+  if (!sqlInstance) {
+    sqlInstance = neon(process.env.DATABASE_URL!, {
+      fetchOptions: {
+        cache: 'no-store' as RequestCache
+      }
+    })
+  }
+  return sqlInstance
+}
 
 let initialized = false
 let initPromise: Promise<void> | null = null
@@ -43,7 +54,11 @@ async function _initDb() {
         printed BOOLEAN DEFAULT FALSE,
         ready BOOLEAN DEFAULT FALSE,
         ready_at TIMESTAMPTZ,
-        completed BOOLEAN DEFAULT FALSE
+        completed BOOLEAN DEFAULT FALSE,
+        moved_to_mail BOOLEAN DEFAULT FALSE,
+        moved_to_mail_at TIMESTAMPTZ,
+        mailed BOOLEAN DEFAULT FALSE,
+        mailed_at TIMESTAMPTZ
       )
     `
     await sql`
@@ -73,8 +88,8 @@ async function _initDb() {
       `
     }
     // Seed patients if empty
-    const count = await sql`SELECT COUNT(*) as cnt FROM patients`
-    if (Number((count[0] as any).cnt) === 0) {
+    const count = (await sql`SELECT COUNT(*) as cnt FROM patients`) as unknown as any[]
+    if (Number(count[0].cnt) === 0) {
       await seedPatients()
     }
   } catch (error: any) {
@@ -125,7 +140,7 @@ async function seedPatients() {
 
 export async function getPatientByMRN(mrn: string): Promise<Patient | null> {
   const sql = getDb()
-  const rows = await sql`SELECT * FROM patients WHERE mrn = ${mrn} LIMIT 1`
+  const rows = (await sql`SELECT * FROM patients WHERE mrn = ${mrn} LIMIT 1`) as unknown as any[]
   return (rows[0] as Patient) ?? null
 }
 
@@ -133,7 +148,9 @@ export async function getProductionRecords(): Promise<WaiterRecord[]> {
   const sql = getDb()
   const rows = await sql`
     SELECT * FROM waiter_records
-    WHERE ready = FALSE AND completed = FALSE
+    WHERE ready = FALSE 
+      AND completed = FALSE
+      AND order_type IN ('waiter', 'acute', 'urgent_mail')
     ORDER BY due_time ASC
   `
   return rows as WaiterRecord[]
@@ -141,7 +158,7 @@ export async function getProductionRecords(): Promise<WaiterRecord[]> {
 
 export async function getRecord(id: number): Promise<WaiterRecord | null> {
   const sql = getDb()
-  const rows = await sql`SELECT * FROM waiter_records WHERE id = ${id} LIMIT 1`
+  const rows = (await sql`SELECT * FROM waiter_records WHERE id = ${id} LIMIT 1`) as unknown as any[]
   return (rows[0] as WaiterRecord) ?? null
 }
 
@@ -173,8 +190,49 @@ export async function getCompletedRecords(): Promise<WaiterRecord[]> {
   const sql = getDb()
   const rows = await sql`
     SELECT * FROM waiter_records
-    WHERE ready = TRUE AND completed = FALSE
+    WHERE ready = TRUE 
+      AND completed = FALSE
+      AND order_type IN ('waiter', 'acute')
     ORDER BY ready_at DESC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getMailQueueRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE order_type = 'mail' 
+      AND moved_to_mail = FALSE
+      AND mailed = FALSE
+    ORDER BY created_at ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getCompletedMailRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE (
+      (order_type = 'mail' AND moved_to_mail = TRUE AND mailed = FALSE)
+      OR
+      (order_type = 'urgent_mail' AND ready = TRUE AND mailed = FALSE)
+    )
+    ORDER BY 
+      CASE WHEN moved_to_mail = TRUE THEN moved_to_mail_at ELSE ready_at END ASC
+  `
+  return rows as WaiterRecord[]
+}
+
+export async function getMailHistoryRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE order_type IN ('mail', 'urgent_mail')
+      AND mailed = TRUE
+    ORDER BY mailed_at DESC
+    LIMIT 100
   `
   return rows as WaiterRecord[]
 }
@@ -191,11 +249,11 @@ export async function createRecord(data: {
   due_time: string
 }): Promise<WaiterRecord> {
   const sql = getDb()
-  const rows = await sql`
+  const rows = (await sql`
     INSERT INTO waiter_records (mrn, first_name, last_name, dob, num_prescriptions, comments, initials, order_type, due_time)
     VALUES (${data.mrn}, ${data.first_name}, ${data.last_name}, ${data.dob}, ${data.num_prescriptions}, ${data.comments}, ${data.initials}, ${data.order_type}, ${data.due_time}::timestamptz)
     RETURNING *
-  `
+  `) as unknown as any[]
   const record = rows[0] as WaiterRecord
   await logAudit(record.id, 'CREATE', null, record, data.initials)
   return record
@@ -210,16 +268,18 @@ export async function updateRecord(
     printed?: boolean
     ready?: boolean
     completed?: boolean
+    moved_to_mail?: boolean
+    mailed?: boolean
   },
   staffInitials?: string
 ): Promise<WaiterRecord | null> {
   const sql = getDb()
-  const existing = await sql`SELECT * FROM waiter_records WHERE id = ${id}`
+  const existing = (await sql`SELECT * FROM waiter_records WHERE id = ${id}`) as unknown as any[]
   if (!existing[0]) return null
   const old = existing[0]
 
-  // Build update with explicit cases to keep type safety
-  let rows: any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rows: any
 
   if (updates.ready === true) {
     rows = await sql`
@@ -230,7 +290,39 @@ export async function updateRecord(
         printed = COALESCE(${updates.printed ?? null}, printed),
         ready = TRUE,
         ready_at = NOW(),
-        completed = COALESCE(${updates.completed ?? null}, completed)
+        completed = COALESCE(${updates.completed ?? null}, completed),
+        moved_to_mail = COALESCE(${updates.moved_to_mail ?? null}, moved_to_mail),
+        mailed = COALESCE(${updates.mailed ?? null}, mailed)
+      WHERE id = ${id}
+      RETURNING *
+    `
+  } else if (updates.moved_to_mail === true) {
+    rows = await sql`
+      UPDATE waiter_records SET
+        comments = COALESCE(${updates.comments ?? null}, comments),
+        initials = COALESCE(${updates.initials ?? null}, initials),
+        num_prescriptions = COALESCE(${updates.num_prescriptions ?? null}, num_prescriptions),
+        printed = COALESCE(${updates.printed ?? null}, printed),
+        ready = COALESCE(${updates.ready ?? null}, ready),
+        completed = COALESCE(${updates.completed ?? null}, completed),
+        moved_to_mail = TRUE,
+        moved_to_mail_at = NOW(),
+        mailed = COALESCE(${updates.mailed ?? null}, mailed)
+      WHERE id = ${id}
+      RETURNING *
+    `
+  } else if (updates.mailed === true) {
+    rows = await sql`
+      UPDATE waiter_records SET
+        comments = COALESCE(${updates.comments ?? null}, comments),
+        initials = COALESCE(${updates.initials ?? null}, initials),
+        num_prescriptions = COALESCE(${updates.num_prescriptions ?? null}, num_prescriptions),
+        printed = COALESCE(${updates.printed ?? null}, printed),
+        ready = COALESCE(${updates.ready ?? null}, ready),
+        completed = COALESCE(${updates.completed ?? null}, completed),
+        moved_to_mail = COALESCE(${updates.moved_to_mail ?? null}, moved_to_mail),
+        mailed = TRUE,
+        mailed_at = NOW()
       WHERE id = ${id}
       RETURNING *
     `
@@ -242,7 +334,9 @@ export async function updateRecord(
         num_prescriptions = COALESCE(${updates.num_prescriptions ?? null}, num_prescriptions),
         printed = COALESCE(${updates.printed ?? null}, printed),
         ready = COALESCE(${updates.ready ?? null}, ready),
-        completed = COALESCE(${updates.completed ?? null}, completed)
+        completed = COALESCE(${updates.completed ?? null}, completed),
+        moved_to_mail = COALESCE(${updates.moved_to_mail ?? null}, moved_to_mail),
+        mailed = COALESCE(${updates.mailed ?? null}, mailed)
       WHERE id = ${id}
       RETURNING *
     `
@@ -255,28 +349,39 @@ export async function updateRecord(
 
 export async function deleteRecord(id: number): Promise<boolean> {
   const sql = getDb()
-  const rows = await sql`DELETE FROM waiter_records WHERE id = ${id} RETURNING id`
+  const rows = (await sql`DELETE FROM waiter_records WHERE id = ${id} RETURNING id`) as unknown as any[]
   return rows.length > 0
 }
 
 export async function getSettings(): Promise<Record<string, any>> {
   const sql = getDb()
   const rows = await sql`SELECT key, value FROM settings`
+  console.log('Raw settings rows from DB:', rows)
   const settings: Record<string, any> = { ...DEFAULT_SETTINGS }
   for (const row of rows as any[]) {
     try { settings[row.key] = JSON.parse(row.value) } catch { settings[row.key] = row.value }
   }
+  console.log('Parsed settings:', settings)
   return settings
 }
 
 export async function updateSettings(updates: Record<string, any>): Promise<void> {
   const sql = getDb()
   for (const [key, value] of Object.entries(updates)) {
-    await sql`
-      INSERT INTO settings (key, value, updated_at)
-      VALUES (${key}, ${JSON.stringify(value)}, NOW())
-      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-    `
+    const jsonValue = JSON.stringify(value)
+    console.log(`Updating setting ${key} = ${jsonValue}`)
+    try {
+      const result = await sql`
+        INSERT INTO settings (key, value, updated_at)
+        VALUES (${key}, ${jsonValue}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+        RETURNING key, value
+      `
+      console.log(`Upsert result for ${key}:`, result)
+    } catch (error) {
+      console.error(`Failed to update setting ${key}:`, error)
+      throw error
+    }
   }
 }
 

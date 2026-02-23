@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { initializeDatabase, getActiveRecords, getProductionRecords, getCompletedRecords, createRecord } from '@/lib/db'
+import { initializeDatabase, getActiveRecords, getProductionRecords, getCompletedRecords, createRecord, getMailQueueRecords, getCompletedMailRecords, getMailHistoryRecords } from '@/lib/db'
 import { calculateDueTime } from '@/lib/utils'
 import { OrderType } from '@/lib/types'
 
@@ -8,12 +8,24 @@ export async function GET(request: NextRequest) {
     await initializeDatabase()
     const type = request.nextUrl.searchParams.get('type')
     let records
-    if (type === 'completed') {
-      records = await getCompletedRecords()
-    } else {
-      records = type === 'production'
-        ? await getProductionRecords()
-        : await getActiveRecords()
+    switch (type) {
+      case 'completed':
+        records = await getCompletedRecords()
+        break
+      case 'mail_queue':
+        records = await getMailQueueRecords()
+        break
+      case 'completed_mail':
+        records = await getCompletedMailRecords()
+        break
+      case 'mail_history':
+        records = await getMailHistoryRecords()
+        break
+      case 'production':
+        records = await getProductionRecords()
+        break
+      default:
+        records = await getActiveRecords()
     }
     return NextResponse.json(records)
   } catch (error) {

@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  RefreshCw, Inbox, Clock, Plus, X, Check, Trash2, Printer, CheckCircle, Edit3
+  RefreshCw, Inbox, Clock, Plus, X, Check, Trash2, Printer, CheckCircle, Edit3,
+  Mail, Send, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { WaiterRecord, OrderType } from '@/lib/types'
-import { cn, formatTimeRemaining, getTimeRemaining, getOrderTypeLabel, formatTime } from '@/lib/utils'
+import { cn, formatTimeRemaining, getTimeRemaining, formatTime, parseFlexibleDate, formatDOB } from '@/lib/utils'
 import { toast } from 'sonner'
 
 type TabType = 'active' | 'completed'
@@ -15,20 +16,26 @@ const orderTypeOptions: { value: OrderType; label: string; color: string }[] = [
   { value: 'waiter', label: 'W', color: 'green' },
   { value: 'acute', label: 'A', color: 'blue' },
   { value: 'urgent_mail', label: 'U', color: 'purple' },
+  { value: 'mail', label: 'M', color: 'orange' },
 ]
 
 export function ProductionBoard() {
   const [records, setRecords] = useState<WaiterRecord[]>([])
   const [completedRecords, setCompletedRecords] = useState<WaiterRecord[]>([])
+  const [mailQueueRecords, setMailQueueRecords] = useState<WaiterRecord[]>([])
+  const [completedMailRecords, setCompletedMailRecords] = useState<WaiterRecord[]>([])
+  const [mailHistoryRecords, setMailHistoryRecords] = useState<WaiterRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [activeTab, setActiveTab] = useState<TabType>('active')
   const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [showMailHistory, setShowMailHistory] = useState(false)
   
   const [quickAddForm, setQuickAddForm] = useState({
     first_name: '',
     last_name: '',
+    dob: '',
     mrn: '',
     num_prescriptions: 1,
     initials: '',
@@ -39,14 +46,23 @@ export function ProductionBoard() {
 
   const fetchRecords = useCallback(async () => {
     try {
-      const [activeRes, completedRes] = await Promise.all([
+      const [activeRes, completedRes, mailQueueRes, completedMailRes, mailHistoryRes] = await Promise.all([
         fetch('/api/records?type=production'),
-        fetch('/api/records?type=completed')
+        fetch('/api/records?type=completed'),
+        fetch('/api/records?type=mail_queue'),
+        fetch('/api/records?type=completed_mail'),
+        fetch('/api/records?type=mail_history')
       ])
       const activeData = await activeRes.json()
       const completedData = await completedRes.json()
+      const mailQueueData = await mailQueueRes.json()
+      const completedMailData = await completedMailRes.json()
+      const mailHistoryData = await mailHistoryRes.json()
       setRecords(activeData)
       setCompletedRecords(completedData)
+      setMailQueueRecords(mailQueueData)
+      setCompletedMailRecords(completedMailData)
+      setMailHistoryRecords(mailHistoryData)
     } catch (error) {
       console.error('Failed to fetch records:', error)
       toast.error('Failed to fetch records')
@@ -131,11 +147,16 @@ export function ProductionBoard() {
     
     setIsSubmitting(true)
     
+    const parsedDob = quickAddForm.dob ? parseFlexibleDate(quickAddForm.dob) : ''
+    
     try {
       const response = await fetch('/api/records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(quickAddForm),
+        body: JSON.stringify({
+          ...quickAddForm,
+          dob: parsedDob
+        }),
       })
       
       if (response.ok) {
@@ -143,6 +164,7 @@ export function ProductionBoard() {
         setQuickAddForm({
           first_name: '',
           last_name: '',
+          dob: '',
           mrn: '',
           num_prescriptions: 1,
           initials: '',
@@ -165,8 +187,11 @@ export function ProductionBoard() {
   const stats = useMemo(() => ({
     total: records.length,
     overdue: records.filter(r => new Date(r.due_time) < new Date()).length,
-    completed: completedRecords.length
-  }), [records, completedRecords])
+    completed: completedRecords.length,
+    mailQueue: mailQueueRecords.length,
+    completedMail: completedMailRecords.length,
+    mailHistory: mailHistoryRecords.length
+  }), [records, completedRecords, mailQueueRecords, completedMailRecords, mailHistoryRecords])
 
   if (isLoading) {
     return (
@@ -294,6 +319,14 @@ export function ProductionBoard() {
               />
               <input
                 type="text"
+                placeholder="DOB (opt)"
+                value={quickAddForm.dob}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, dob: e.target.value }))}
+                className="input-field w-24 py-1.5 text-sm"
+                title="Enter as mm/dd/yy, mmddyy, or mm/dd/yyyy"
+              />
+              <input
+                type="text"
                 placeholder="MRN (opt)"
                 value={quickAddForm.mrn}
                 onChange={e => setQuickAddForm(prev => ({ ...prev, mrn: e.target.value }))}
@@ -334,7 +367,8 @@ export function ProductionBoard() {
                     quickAddForm.order_type === opt.value
                       ? opt.color === 'green' ? 'bg-green-500 text-white'
                         : opt.color === 'blue' ? 'bg-blue-500 text-white'
-                        : 'bg-purple-500 text-white'
+                        : opt.color === 'purple' ? 'bg-purple-500 text-white'
+                        : 'bg-orange-500 text-white'
                       : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                   )}
                 >
@@ -375,41 +409,147 @@ export function ProductionBoard() {
       )}
 
       {activeTab === 'active' ? (
-        records.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50"
-          >
-            <Inbox className="h-12 w-12 text-gray-400" />
-            <p className="mt-4 text-lg font-medium text-gray-600">No Active Orders</p>
-            <p className="text-sm text-gray-400">Click Quick Add to create a new order</p>
-          </motion.div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
-              <div className="w-8">Type</div>
-              <div>Patient Name</div>
-              <div className="w-12 text-center"># Rx</div>
-              <div className="w-24 text-center">Due Time</div>
-              <div className="w-12 text-center">Init</div>
-              <div className="w-40">Comments</div>
-              <div className="w-20 text-center">Status</div>
-              <div className="w-10"></div>
+        <>
+          {records.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50"
+            >
+              <Inbox className="h-12 w-12 text-gray-400" />
+              <p className="mt-4 text-lg font-medium text-gray-600">No Active Orders</p>
+              <p className="text-sm text-gray-400">Click Quick Add to create a new order</p>
+            </motion.div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <div className="w-8">Type</div>
+                <div>Patient Name</div>
+                <div className="w-12 text-center"># Rx</div>
+                <div className="w-24 text-center">Due Time</div>
+                <div className="w-12 text-center">Init</div>
+                <div className="w-48">Comments</div>
+                <div className="w-20 text-center">Status</div>
+                <div className="w-10"></div>
+              </div>
+              
+              <AnimatePresence mode="popLayout">
+                {records.map((record) => (
+                  <RecordRow
+                    key={record.id}
+                    record={record}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </AnimatePresence>
             </div>
-            
-            <AnimatePresence mode="popLayout">
-              {records.map((record) => (
-                <RecordRow
-                  key={record.id}
-                  record={record}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        )
+          )}
+
+          {mailQueueRecords.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Mail className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Mail Queue</h3>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {stats.mailQueue}
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/50">
+                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-blue-200 bg-blue-100/50 px-4 py-2 text-xs font-medium text-blue-700 uppercase tracking-wide">
+                  <div>Patient Name</div>
+                  <div className="w-28">DOB</div>
+                  <div className="w-48">Comments</div>
+                  <div className="w-24 text-center">Time</div>
+                  <div className="w-32 text-center">Action</div>
+                </div>
+                <AnimatePresence mode="popLayout">
+                  {mailQueueRecords.map((record) => (
+                    <MailQueueRow
+                      key={record.id}
+                      record={record}
+                      onUpdate={handleUpdate}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+
+          {completedMailRecords.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Send className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Completed Mail</h3>
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                  {stats.completedMail}
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-green-200 bg-green-50/50">
+                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-green-200 bg-green-100/50 px-4 py-2 text-xs font-medium text-green-700 uppercase tracking-wide">
+                  <div>Patient Name</div>
+                  <div className="w-28">DOB</div>
+                  <div className="w-48">Comments</div>
+                  <div className="w-24 text-center">Ready At</div>
+                  <div className="w-32 text-center">Action</div>
+                </div>
+                <AnimatePresence mode="popLayout">
+                  {completedMailRecords.map((record) => (
+                    <CompletedMailRow
+                      key={record.id}
+                      record={record}
+                      onUpdate={handleUpdate}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+
+          {mailHistoryRecords.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6"
+            >
+              <button
+                onClick={() => setShowMailHistory(!showMailHistory)}
+                className="flex items-center gap-2 mb-3 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                {showMailHistory ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                <h3 className="text-lg font-semibold">Mail History</h3>
+                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {stats.mailHistory}
+                </span>
+              </button>
+              {showMailHistory && (
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50">
+                  <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-gray-200 bg-gray-100/50 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <div>Patient Name</div>
+                    <div className="w-28">Order Type</div>
+                    <div className="w-28 text-center">Time Entered</div>
+                    <div className="w-28 text-center">Time Mailed</div>
+                  </div>
+                  <AnimatePresence mode="popLayout">
+                    {mailHistoryRecords.map((record) => (
+                      <MailHistoryRow key={record.id} record={record} />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </>
       ) : (
         completedRecords.length === 0 ? (
           <motion.div
@@ -429,7 +569,7 @@ export function ProductionBoard() {
               <div className="w-12 text-center"># Rx</div>
               <div className="w-24 text-center">Ready At</div>
               <div className="w-12 text-center">Init</div>
-              <div className="w-40">Comments</div>
+              <div className="w-48">Comments</div>
               <div className="w-28 text-center">Action</div>
             </div>
             
@@ -490,6 +630,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
       case 'waiter': return 'bg-green-500'
       case 'acute': return 'bg-blue-500'
       case 'urgent_mail': return 'bg-purple-500'
+      default: return 'bg-gray-500'
     }
   }
 
@@ -498,6 +639,16 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
       case 'waiter': return 'bg-green-100 text-green-700'
       case 'acute': return 'bg-blue-100 text-blue-700'
       case 'urgent_mail': return 'bg-purple-100 text-purple-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getTypeLabel = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'W'
+      case 'acute': return 'A'
+      case 'urgent_mail': return 'U'
+      default: return '?'
     }
   }
 
@@ -508,19 +659,19 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -100 }}
       className={cn(
-        'grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b border-gray-100 px-3 py-2.5 items-center transition-colors',
+        'grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b border-gray-100 px-3 py-3 items-center transition-colors',
         getRowBackground()
       )}
     >
       <div className="flex items-center gap-2 w-8">
-        <div className={cn('w-1 h-8 rounded-full', getTypeColor())} />
+        <div className={cn('w-1 h-10 rounded-full', getTypeColor())} />
         <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', getTypeBadge())}>
-          {record.order_type === 'waiter' ? 'W' : record.order_type === 'acute' ? 'A' : 'U'}
+          {getTypeLabel()}
         </span>
       </div>
       
       <div className="flex items-center gap-2">
-        <span className="font-medium text-gray-900 text-base">
+        <span className="font-medium text-gray-900 text-lg">
           {record.first_name} {record.last_name}
         </span>
         {record.mrn && (
@@ -528,7 +679,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
         )}
       </div>
       
-      <div className="w-12 text-center font-medium text-gray-700">
+      <div className="w-12 text-center font-medium text-gray-700 text-base">
         {record.num_prescriptions}
       </div>
       
@@ -545,11 +696,11 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
         </div>
       </div>
       
-      <div className="w-12 text-center font-medium text-gray-700 uppercase">
+      <div className="w-12 text-center font-medium text-gray-700 uppercase text-base">
         {record.initials}
       </div>
       
-      <div className="w-40 flex items-center gap-1">
+      <div className="w-48 flex items-center gap-1">
         {isEditingComments ? (
           <div className="flex items-center gap-1 w-full">
             <input
@@ -563,7 +714,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
                   setIsEditingComments(false)
                 }
               }}
-              className="input-field w-full py-0.5 text-sm"
+              className="input-field w-full py-0.5 text-base"
               autoFocus
             />
             <button onClick={handleSaveComments} className="p-1 text-green-600 hover:bg-green-100 rounded">
@@ -575,7 +726,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
             className="flex items-center gap-1 cursor-pointer group w-full"
             onClick={() => setIsEditingComments(true)}
           >
-            <span className={cn('text-sm truncate', record.comments ? 'text-gray-700' : 'text-gray-400 italic')}>
+            <span className={cn('text-base truncate', record.comments ? 'text-gray-700' : 'text-gray-400 italic')}>
               {record.comments || 'Add...'}
             </span>
             {commentsEdited && (
@@ -619,6 +770,164 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
   )
 }
 
+interface MailQueueRowProps {
+  record: WaiterRecord
+  onUpdate: (id: number, updates: Partial<WaiterRecord>) => void
+  onDelete: (id: number) => void
+}
+
+function MailQueueRow({ record, onUpdate, onDelete }: MailQueueRowProps) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-blue-100 px-4 py-3 items-center hover:bg-blue-100/50 transition-colors"
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-medium text-gray-900 text-lg">
+          {record.first_name} {record.last_name}
+        </span>
+        <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold bg-orange-100 text-orange-700')}>
+          M
+        </span>
+      </div>
+      
+      <div className="w-28 text-base text-gray-600">
+        {record.dob ? formatDOB(record.dob) : '-'}
+      </div>
+      
+      <div className="w-48 text-base text-gray-600 truncate">
+        {record.comments || '-'}
+      </div>
+      
+      <div className="w-24 text-center text-sm text-gray-500">
+        {formatTime(record.created_at)}
+      </div>
+      
+      <div className="w-32 flex items-center justify-center gap-2">
+        <motion.button
+          onClick={() => onUpdate(record.id, { moved_to_mail: true })}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+        >
+          <Send className="h-4 w-4" />
+          Moved
+        </motion.button>
+        <button
+          onClick={() => onDelete(record.id)}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+interface CompletedMailRowProps {
+  record: WaiterRecord
+  onUpdate: (id: number, updates: Partial<WaiterRecord>) => void
+  onDelete: (id: number) => void
+}
+
+function CompletedMailRow({ record, onUpdate, onDelete }: CompletedMailRowProps) {
+  const orderTypeLabel = record.order_type === 'urgent_mail' ? 'U' : 'M'
+  const orderTypeBadge = record.order_type === 'urgent_mail' 
+    ? 'bg-purple-100 text-purple-700' 
+    : 'bg-orange-100 text-orange-700'
+  
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 100 }}
+      className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-green-100 px-4 py-3 items-center hover:bg-green-100/50 transition-colors"
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-medium text-gray-900 text-lg">
+          {record.first_name} {record.last_name}
+        </span>
+        <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', orderTypeBadge)}>
+          {orderTypeLabel}
+        </span>
+      </div>
+      
+      <div className="w-28 text-base text-gray-600">
+        {record.dob ? formatDOB(record.dob) : '-'}
+      </div>
+      
+      <div className="w-48 text-base text-gray-600 truncate">
+        {record.comments || '-'}
+      </div>
+      
+      <div className="w-24 text-center text-sm text-gray-500">
+        {formatTime(record.moved_to_mail_at || record.ready_at || record.created_at)}
+      </div>
+      
+      <div className="w-32 flex items-center justify-center gap-2">
+        <motion.button
+          onClick={() => onUpdate(record.id, { mailed: true })}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+        >
+          <CheckCircle className="h-4 w-4" />
+          Mailed
+        </motion.button>
+        <button
+          onClick={() => onDelete(record.id)}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+interface MailHistoryRowProps {
+  record: WaiterRecord
+}
+
+function MailHistoryRow({ record }: MailHistoryRowProps) {
+  const orderTypeLabel = record.order_type === 'urgent_mail' ? 'URGENT MAIL' : 'MAIL'
+  
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 100 }}
+      className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b border-gray-100 px-4 py-2 items-center text-gray-500"
+    >
+      <div className="font-medium text-gray-600">
+        {record.first_name} {record.last_name}
+      </div>
+      
+      <div className="w-28 text-sm">
+        <span className={cn(
+          'rounded px-1.5 py-0.5 text-xs font-medium',
+          record.order_type === 'urgent_mail' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+        )}>
+          {orderTypeLabel}
+        </span>
+      </div>
+      
+      <div className="w-28 text-center text-sm">
+        {formatTime(record.created_at)}
+      </div>
+      
+      <div className="w-28 text-center text-sm">
+        {record.mailed_at ? formatTime(record.mailed_at) : '-'}
+      </div>
+    </motion.div>
+  )
+}
+
 interface CompletedRecordRowProps {
   record: WaiterRecord
   onMarkComplete: (id: number) => void
@@ -629,7 +938,7 @@ function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps)
     switch (record.order_type) {
       case 'waiter': return 'bg-green-500'
       case 'acute': return 'bg-blue-500'
-      case 'urgent_mail': return 'bg-purple-500'
+      default: return 'bg-gray-500'
     }
   }
 
@@ -637,7 +946,15 @@ function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps)
     switch (record.order_type) {
       case 'waiter': return 'bg-green-100 text-green-700'
       case 'acute': return 'bg-blue-100 text-blue-700'
-      case 'urgent_mail': return 'bg-purple-100 text-purple-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getTypeLabel = () => {
+    switch (record.order_type) {
+      case 'waiter': return 'W'
+      case 'acute': return 'A'
+      default: return '?'
     }
   }
 
@@ -647,17 +964,17 @@ function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps)
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 100 }}
-      className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 border-b border-green-100 px-3 py-2.5 items-center hover:bg-green-100/50 transition-colors"
+      className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] gap-2 border-b border-green-100 px-3 py-3 items-center hover:bg-green-100/50 transition-colors"
     >
       <div className="flex items-center gap-2 w-8">
-        <div className={cn('w-1 h-8 rounded-full', getTypeColor())} />
+        <div className={cn('w-1 h-10 rounded-full', getTypeColor())} />
         <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', getTypeBadge())}>
-          {record.order_type === 'waiter' ? 'W' : record.order_type === 'acute' ? 'A' : 'U'}
+          {getTypeLabel()}
         </span>
       </div>
       
       <div className="flex items-center gap-2">
-        <span className="font-medium text-gray-900 text-base">
+        <span className="font-medium text-gray-900 text-lg">
           {record.first_name} {record.last_name}
         </span>
         {record.mrn && (
@@ -665,7 +982,7 @@ function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps)
         )}
       </div>
       
-      <div className="w-12 text-center font-medium text-gray-700">
+      <div className="w-12 text-center font-medium text-gray-700 text-base">
         {record.num_prescriptions}
       </div>
       
@@ -673,11 +990,11 @@ function CompletedRecordRow({ record, onMarkComplete }: CompletedRecordRowProps)
         {record.ready_at ? formatTime(record.ready_at) : '-'}
       </div>
       
-      <div className="w-12 text-center font-medium text-gray-700 uppercase">
+      <div className="w-12 text-center font-medium text-gray-700 uppercase text-base">
         {record.initials}
       </div>
       
-      <div className="w-40 text-sm text-gray-600 truncate">
+      <div className="w-48 text-base text-gray-600 truncate">
         {record.comments || '-'}
       </div>
       

@@ -1,4 +1,4 @@
-export type OrderType = 'waiter' | 'acute' | 'urgent_mail'
+export type OrderType = 'waiter' | 'acute' | 'urgent_mail' | 'mail'
 
 export interface Patient {
   id: number
@@ -25,6 +25,10 @@ export interface WaiterRecord {
   ready: boolean
   ready_at: string | null
   completed: boolean
+  moved_to_mail: boolean
+  moved_to_mail_at: string | null
+  mailed: boolean
+  mailed_at: string | null
 }
 
 export interface Settings {

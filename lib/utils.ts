@@ -84,7 +84,43 @@ export function getOrderTypeLabel(orderType: string): string {
       return 'ACUTE'
     case 'urgent_mail':
       return 'URGENT MAIL'
+    case 'mail':
+      return 'MAIL'
     default:
       return orderType.toUpperCase()
   }
+}
+
+export function parseFlexibleDate(input: string): string | null {
+  if (!input) return null
+  const cleaned = input.trim().replace(/\s+/g, '')
+  
+  if (/^\d{6}$/.test(cleaned)) {
+    const mm = cleaned.slice(0, 2)
+    const dd = cleaned.slice(2, 4)
+    const yy = cleaned.slice(4, 6)
+    const year = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`
+    return `${year}-${mm}-${dd}`
+  }
+  if (/^\d{8}$/.test(cleaned)) {
+    const mm = cleaned.slice(0, 2)
+    const dd = cleaned.slice(2, 4)
+    const yyyy = cleaned.slice(4, 8)
+    return `${yyyy}-${mm}-${dd}`
+  }
+  
+  const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (slashMatch) {
+    const [, m, d, y] = slashMatch
+    const mm = m.padStart(2, '0')
+    const dd = d.padStart(2, '0')
+    const year = y.length === 2 ? (parseInt(y) > 50 ? `19${y}` : `20${y}`) : y
+    return `${year}-${mm}-${dd}`
+  }
+  
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return cleaned
+  }
+  
+  return null
 }

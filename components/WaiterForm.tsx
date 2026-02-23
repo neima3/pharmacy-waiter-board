@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, RefreshCw, CheckCircle, X, Sparkles } from 'lucide-react'
 import { MRNSearch } from './MRNSearch'
 import { Patient, OrderType } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { cn, parseFlexibleDate } from '@/lib/utils'
 import { toast } from 'sonner'
 
 const orderTypes: { value: OrderType; label: string; description: string; color: string }[] = [
   { value: 'waiter', label: 'Waiter', description: 'Due in 30 mins, shows on patient board', color: 'green' },
   { value: 'acute', label: 'Acute', description: 'Due in 1 hr, does not show on patient board', color: 'blue' },
   { value: 'urgent_mail', label: 'Urgent Mail', description: 'Due in 1 hr, does not show on patient board', color: 'purple' },
+  { value: 'mail', label: 'Mail', description: 'Mail order, no due time', color: 'orange' },
 ]
 
 interface FormErrors {
@@ -116,6 +117,8 @@ export function WaiterForm() {
     
     setIsSubmitting(true)
     
+    const parsedDob = dob ? parseFlexibleDate(dob) : ''
+    
     try {
       const response = await fetch('/api/records', {
         method: 'POST',
@@ -124,7 +127,7 @@ export function WaiterForm() {
           mrn,
           first_name: firstName,
           last_name: lastName,
-          dob,
+          dob: parsedDob,
           num_prescriptions: numPrescriptions,
           comments,
           initials,
@@ -324,10 +327,11 @@ export function WaiterForm() {
           
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
-              Date of Birth <span className="text-red-500">*</span>
+              Date of Birth
             </label>
             <input
-              type="date"
+              type="text"
+              placeholder="mm/dd/yy or mmddyy"
               value={dob}
               onChange={(e) => {
                 setDob(e.target.value)
@@ -397,7 +401,9 @@ export function WaiterForm() {
                         ? 'border-green-500 bg-green-50 text-green-700 shadow-sm'
                         : type.color === 'blue'
                         ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                        : 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm'
+                        : type.color === 'purple'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm'
+                        : 'border-orange-500 bg-orange-50 text-orange-700 shadow-sm'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                   )}
                 >

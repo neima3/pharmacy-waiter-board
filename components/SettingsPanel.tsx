@@ -44,6 +44,7 @@ export function SettingsPanel() {
 
   const handleSave = async () => {
     setIsSaving(true)
+    console.log('Saving settings:', settings)
     try {
       const response = await fetch('/api/settings', {
         method: 'PUT',
@@ -51,15 +52,20 @@ export function SettingsPanel() {
         body: JSON.stringify(settings),
       })
       
+      const data = await response.json()
+      console.log('Save response:', response.status, data)
+      
       if (response.ok) {
         toast.success('Settings saved successfully!')
         setOriginalSettings(settings)
       } else {
-        toast.error('Failed to save settings')
+        const errorMsg = data.error || data.details || 'Failed to save settings'
+        console.error('Save failed:', errorMsg)
+        toast.error(errorMsg)
       }
     } catch (error) {
       console.error('Failed to save settings:', error)
-      toast.error('Failed to save settings')
+      toast.error(`Failed to save settings: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsSaving(false)
     }
