@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { 
   RefreshCw, Inbox, Clock, Plus, X, Check, Trash2, Printer, CheckCircle, Edit3,
-  Mail, Send, ChevronDown, ChevronUp
+  Mail, Send, ChevronDown, ChevronUp, Search, Filter
 } from 'lucide-react'
 import { WaiterRecord, OrderType } from '@/lib/types'
-import { cn, formatTimeRemaining, getTimeRemaining, formatTime, parseFlexibleDate, formatDOB } from '@/lib/utils'
+import { cn, formatTimeRemaining, getTimeRemaining, formatTime, parseFlexibleDate, formatDOB, getElapsedMinutes } from '@/lib/utils'
 import { toast } from 'sonner'
 
 type TabType = 'active' | 'completed'
@@ -32,6 +32,10 @@ export function ProductionBoard() {
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [showMailHistory, setShowMailHistory] = useState(false)
   
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<OrderType | 'all'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+
   const [quickAddForm, setQuickAddForm] = useState({
     first_name: '',
     last_name: '',
@@ -58,11 +62,29 @@ export function ProductionBoard() {
       const mailQueueData = await mailQueueRes.json()
       const completedMailData = await completedMailRes.json()
       const mailHistoryData = await mailHistoryRes.json()
-      setRecords(activeData)
+      
+      setRecords(prev => {
+        const idMap = new Map(prev.map((r, i) => [r.id, i]))
+        return activeData.sort((a: WaiterRecord, b: WaiterRecord) => {
+          if (idMap.has(a.id) && idMap.has(b.id)) {
+            return idMap.get(a.id)! - idMap.get(b.id)!
+          }
+          return 0
+        })
+      })
       setCompletedRecords(completedData)
       setMailQueueRecords(mailQueueData)
       setCompletedMailRecords(completedMailData)
       setMailHistoryRecords(mailHistoryData)
+
+      setSelectedIds(prev => {
+        const activeIds = new Set(activeData.map((r: WaiterRecord) => r.id))
+        const newSet = new Set<number>()
+        prev.forEach(id => {
+          if (activeIds.has(id)) newSet.add(id)
+        })
+        return newSet
+      })
     } catch (error) {
       console.error('Failed to fetch records:', error)
       toast.error('Failed to fetch records')
@@ -132,9 +154,48 @@ export function ProductionBoard() {
     }
   }
 
+  const handleBulkAction = async (action: 'print' | 'ready') => {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    
+    toast.promise(
+      Promise.all(ids.map(id => fetch(`/api/records/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'print' ? { printed: true } : { ready: true }),
+      }))),
+      {
+        loading: 'Processing bulk action...',
+        success: () => {
+          fetchRecords()
+          setSelectedIds(new Set())
+          return `Successfully updated ${ids.length} records`
+        },
+        error: 'Failed to process bulk action'
+      }
+    )
+  }
+
   const handleRefresh = () => {
     setIsRefreshing(true)
     fetchRecords()
+  }
+
+  const toggleSelection = (id: number) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) newSet.delete(id)
+      else newSet.add(id)
+      return newSet
+    })
+  }
+
+  const toggleAllSelection = () => {
+    if (selectedIds.size === filteredRecords.length && filteredRecords.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredRecords.map(r => r.id)))
+    }
   }
 
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
@@ -193,6 +254,17 @@ export function ProductionBoard() {
     mailHistory: mailHistoryRecords.length
   }), [records, completedRecords, mailQueueRecords, completedMailRecords, mailHistoryRecords])
 
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => {
+      const matchesSearch = 
+        r.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.mrn && r.mrn.toLowerCase().includes(searchQuery.toLowerCase()))
+      const matchesFilter = filterType === 'all' || r.order_type === filterType
+      return matchesSearch && matchesFilter
+    })
+  }, [records, searchQuery, filterType])
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -211,7 +283,7 @@ export function ProductionBoard() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex rounded-lg bg-gray-100 p-1">
               <button
@@ -261,8 +333,36 @@ export function ProductionBoard() {
             )}
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex flex-wrap items-center gap-3">
+            {activeTab === 'active' && (
+              <>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search name or MRN"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  />
+                </div>
+                <div className="relative">
+                  <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value as OrderType | 'all')}
+                    className="pl-8 pr-8 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 appearance-none bg-white"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="waiter">Waiter</option>
+                    <option value="acute">Acute</option>
+                    <option value="urgent_mail">Urgent Mail</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center gap-2 text-sm text-gray-500 ml-2">
               <Clock className="h-4 w-4" />
               {lastRefresh.toLocaleTimeString()}
             </div>
@@ -292,13 +392,44 @@ export function ProductionBoard() {
         </div>
       </div>
 
+      <AnimatePresence>
+        {selectedIds.size > 0 && activeTab === 'active' && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -20, height: 0 }}
+            className="flex items-center justify-between rounded-lg bg-teal-50 border border-teal-200 px-4 py-3"
+          >
+            <span className="text-sm font-medium text-teal-800">
+              {selectedIds.size} record(s) selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleBulkAction('print')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Printer className="h-4 w-4" />
+                Mark Printed
+              </button>
+              <button
+                onClick={() => handleBulkAction('ready')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Mark Ready
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {activeTab === 'active' && showQuickAdd && (
         <motion.form
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           onSubmit={handleQuickAddSubmit}
-          className="rounded-xl border-2 border-teal-200 bg-teal-50/50 p-4"
+          className="rounded-xl border-2 border-teal-200 bg-teal-50/50 p-4 mb-4"
         >
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
@@ -410,39 +541,55 @@ export function ProductionBoard() {
 
       {activeTab === 'active' ? (
         <>
-          {records.length === 0 ? (
+          {filteredRecords.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50"
             >
               <Inbox className="h-12 w-12 text-gray-400" />
-              <p className="mt-4 text-lg font-medium text-gray-600">No Active Orders</p>
-              <p className="text-sm text-gray-400">Click Quick Add to create a new order</p>
+              <p className="mt-4 text-lg font-medium text-gray-600">
+                {records.length > 0 ? 'No matching orders' : 'No Active Orders'}
+              </p>
+              <p className="text-sm text-gray-400">
+                {records.length > 0 ? 'Try changing your filters' : 'Click Quick Add to create a new order'}
+              </p>
             </motion.div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+              <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto_auto_auto_auto] gap-2 border-b bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide items-center">
+                <div className="w-8 flex justify-center">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.size === filteredRecords.length && filteredRecords.length > 0}
+                    onChange={toggleAllSelection}
+                    className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                </div>
                 <div className="w-8">Type</div>
                 <div>Patient Name</div>
                 <div className="w-12 text-center"># Rx</div>
                 <div className="w-24 text-center">Due Time</div>
+                <div className="w-20 text-center">Elapsed</div>
                 <div className="w-12 text-center">Init</div>
-                <div className="w-48">Comments</div>
+                <div className="w-40">Comments</div>
                 <div className="w-20 text-center">Status</div>
                 <div className="w-10"></div>
               </div>
               
-              <AnimatePresence mode="popLayout">
-                {records.map((record) => (
-                  <RecordRow
-                    key={record.id}
-                    record={record}
-                    onUpdate={handleUpdate}
-                    onDelete={handleDelete}
-                  />
+              <Reorder.Group axis="y" values={records} onReorder={setRecords} className="m-0 p-0 list-none">
+                {filteredRecords.map((record) => (
+                  <Reorder.Item key={record.id} value={record}>
+                    <RecordRow
+                      record={record}
+                      onUpdate={handleUpdate}
+                      onDelete={handleDelete}
+                      isSelected={selectedIds.has(record.id)}
+                      onToggleSelect={() => toggleSelection(record.id)}
+                    />
+                  </Reorder.Item>
                 ))}
-              </AnimatePresence>
+              </Reorder.Group>
             </div>
           )}
 
@@ -482,38 +629,38 @@ export function ProductionBoard() {
           )}
 
           {completedMailRecords.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Send className="h-5 w-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Completed Mail</h3>
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                  {stats.completedMail}
-                </span>
-              </div>
-              <div className="overflow-hidden rounded-xl border border-green-200 bg-green-50/50">
-                <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-green-200 bg-green-100/50 px-4 py-2 text-xs font-medium text-green-700 uppercase tracking-wide">
-                  <div>Patient Name</div>
-                  <div className="w-28">DOB</div>
-                  <div className="w-48">Comments</div>
-                  <div className="w-24 text-center">Ready At</div>
-                  <div className="w-32 text-center">Action</div>
-                </div>
-                <AnimatePresence mode="popLayout">
-                  {completedMailRecords.map((record) => (
-                    <CompletedMailRow
-                      key={record.id}
-                      record={record}
-                      onUpdate={handleUpdate}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
+             <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             className="mt-6"
+           >
+             <div className="flex items-center gap-2 mb-3">
+               <Send className="h-5 w-5 text-green-600" />
+               <h3 className="text-lg font-semibold text-gray-900">Completed Mail</h3>
+               <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                 {stats.completedMail}
+               </span>
+             </div>
+             <div className="overflow-hidden rounded-xl border border-green-200 bg-green-50/50">
+               <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-green-200 bg-green-100/50 px-4 py-2 text-xs font-medium text-green-700 uppercase tracking-wide">
+                 <div>Patient Name</div>
+                 <div className="w-28">DOB</div>
+                 <div className="w-48">Comments</div>
+                 <div className="w-24 text-center">Ready At</div>
+                 <div className="w-32 text-center">Action</div>
+               </div>
+               <AnimatePresence mode="popLayout">
+                 {completedMailRecords.map((record) => (
+                   <CompletedMailRow
+                     key={record.id}
+                     record={record}
+                     onUpdate={handleUpdate}
+                     onDelete={handleDelete}
+                   />
+                 ))}
+               </AnimatePresence>
+             </div>
+           </motion.div>
           )}
 
           {mailHistoryRecords.length > 0 && (
@@ -593,13 +740,16 @@ interface RecordRowProps {
   record: WaiterRecord
   onUpdate: (id: number, updates: Partial<WaiterRecord>) => void
   onDelete: (id: number) => void
+  isSelected: boolean
+  onToggleSelect: () => void
 }
 
-function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
+function RecordRow({ record, onUpdate, onDelete, isSelected, onToggleSelect }: RecordRowProps) {
   const [isEditingComments, setIsEditingComments] = useState(false)
   const [editedComments, setEditedComments] = useState(record.comments)
   const [countdown, setCountdown] = useState(formatTimeRemaining(record.due_time))
   const [timeInfo, setTimeInfo] = useState(getTimeRemaining(record.due_time))
+  const [elapsed, setElapsed] = useState(getElapsedMinutes(record.created_at))
   
   const originalComments = useMemo(() => record.comments, [record.id])
   const commentsEdited = editedComments !== originalComments && originalComments !== ''
@@ -609,9 +759,10 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
       const info = getTimeRemaining(record.due_time)
       setCountdown(formatTimeRemaining(record.due_time))
       setTimeInfo(info)
+      setElapsed(getElapsedMinutes(record.created_at))
     }, 1000)
     return () => clearInterval(interval)
-  }, [record.due_time])
+  }, [record.due_time, record.created_at])
 
   const handleSaveComments = () => {
     onUpdate(record.id, { comments: editedComments })
@@ -619,19 +770,11 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
   }
 
   const getRowBackground = () => {
-    if (timeInfo.isOverdue) return 'bg-red-50 hover:bg-red-100'
-    if (timeInfo.total < 300000) return 'bg-orange-50 hover:bg-orange-100'
-    if (timeInfo.total < 600000) return 'bg-yellow-50 hover:bg-yellow-100'
-    return 'hover:bg-gray-50'
-  }
-
-  const getTypeColor = () => {
-    switch (record.order_type) {
-      case 'waiter': return 'bg-green-500'
-      case 'acute': return 'bg-blue-500'
-      case 'urgent_mail': return 'bg-purple-500'
-      default: return 'bg-gray-500'
-    }
+    if (isSelected) return 'bg-teal-50 border-l-4 border-l-teal-500'
+    if (timeInfo.isOverdue) return 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500'
+    if (timeInfo.total < 300000) return 'bg-orange-50 hover:bg-orange-100 border-l-4 border-l-orange-500'
+    if (timeInfo.total < 600000) return 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-l-yellow-500'
+    return 'hover:bg-gray-50 border-l-4 border-l-green-500'
   }
 
   const getTypeBadge = () => {
@@ -653,18 +796,20 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
   }
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -100 }}
-      className={cn(
-        'grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-2 border-b border-gray-100 px-3 py-3 items-center transition-colors',
-        getRowBackground()
-      )}
-    >
+    <div className={cn(
+      'grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto_auto_auto_auto] gap-2 border-b border-gray-100 px-3 py-3 items-center transition-colors cursor-grab active:cursor-grabbing',
+      getRowBackground()
+    )}>
+      <div className="w-8 flex justify-center">
+        <input 
+          type="checkbox" 
+          checked={isSelected}
+          onChange={onToggleSelect}
+          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+        />
+      </div>
+
       <div className="flex items-center gap-2 w-8">
-        <div className={cn('w-1 h-10 rounded-full', getTypeColor())} />
         <span className={cn('rounded px-1.5 py-0.5 text-xs font-bold', getTypeBadge())}>
           {getTypeLabel()}
         </span>
@@ -695,12 +840,18 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
           {formatTime(record.due_time)}
         </div>
       </div>
+
+      <div className="w-20 text-center flex flex-col items-center">
+        <span className="text-sm font-medium text-gray-600 tabular-nums">
+          {elapsed}m
+        </span>
+      </div>
       
       <div className="w-12 text-center font-medium text-gray-700 uppercase text-base">
         {record.initials}
       </div>
       
-      <div className="w-48 flex items-center gap-1">
+      <div className="w-40 flex items-center gap-1">
         {isEditingComments ? (
           <div className="flex items-center gap-1 w-full">
             <input
@@ -714,7 +865,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
                   setIsEditingComments(false)
                 }
               }}
-              className="input-field w-full py-0.5 text-base"
+              className="input-field w-full py-0.5 text-base h-8"
               autoFocus
             />
             <button onClick={handleSaveComments} className="p-1 text-green-600 hover:bg-green-100 rounded">
@@ -726,7 +877,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
             className="flex items-center gap-1 cursor-pointer group w-full"
             onClick={() => setIsEditingComments(true)}
           >
-            <span className={cn('text-base truncate', record.comments ? 'text-gray-700' : 'text-gray-400 italic')}>
+            <span className={cn('text-sm truncate max-w-[120px]', record.comments ? 'text-gray-700' : 'text-gray-400 italic')}>
               {record.comments || 'Add...'}
             </span>
             {commentsEdited && (
@@ -766,7 +917,7 @@ function RecordRow({ record, onUpdate, onDelete }: RecordRowProps) {
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
-    </motion.div>
+    </div>
   )
 }
 

@@ -34,6 +34,32 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  .bg-premium-gradient {
+    @apply bg-gradient-to-br from-white to-slate-50;
+  }
+
+  .premium-shadow {
+    @apply shadow-xl shadow-slate-200/50;
+  }
+
+  .premium-shadow-hover {
+    @apply shadow-2xl shadow-slate-300/50;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .glass-effect {
+    @apply bg-white/70 backdrop-blur-lg border border-white/20;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
 
 .scrollbar-thin::-webkit-scrollbar {

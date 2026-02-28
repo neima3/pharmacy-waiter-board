@@ -72,6 +72,40 @@ export function PatientBoard() {
   }, [])
 
   useEffect(() => {
+    let scrollInterval: NodeJS.Timeout
+    let direction = 1
+    
+    const startAutoScroll = () => {
+      if (!containerRef.current || !showScrollHint) return
+      
+      scrollInterval = setInterval(() => {
+        if (!containerRef.current) return
+        
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+        
+        if (direction === 1 && scrollTop + clientHeight >= scrollHeight - 10) {
+          direction = -1
+          setTimeout(() => {}, 2000) // Pause at bottom
+        } else if (direction === -1 && scrollTop <= 0) {
+          direction = 1
+          setTimeout(() => {}, 2000) // Pause at top
+        } else {
+          containerRef.current.scrollBy({ top: direction * 1, behavior: 'smooth' })
+        }
+      }, 50)
+    }
+
+    if (showScrollHint) {
+      // Start scrolling after a short delay
+      const timeout = setTimeout(startAutoScroll, 3000)
+      return () => {
+        clearTimeout(timeout)
+        clearInterval(scrollInterval)
+      }
+    }
+  }, [showScrollHint])
+
+  useEffect(() => {
     const checkScroll = () => {
       if (containerRef.current) {
         const { scrollHeight, clientHeight } = containerRef.current
@@ -112,10 +146,10 @@ export function PatientBoard() {
   const fontSize = settings?.display_font_size || 'large'
 
   const fontSizeClasses = useMemo(() => ({
-    small: { title: 'text-4xl', name: 'text-3xl', message: 'text-base' },
-    medium: { title: 'text-5xl', name: 'text-4xl', message: 'text-lg' },
-    large: { title: 'text-6xl', name: 'text-5xl', message: 'text-xl' },
-    'extra-large': { title: 'text-7xl', name: 'text-6xl', message: 'text-2xl' },
+    small: { title: 'text-5xl', name: 'text-5xl', message: 'text-xl', clock: 'text-6xl', date: 'text-2xl' },
+    medium: { title: 'text-6xl', name: 'text-6xl', message: 'text-2xl', clock: 'text-7xl', date: 'text-3xl' },
+    large: { title: 'text-7xl', name: 'text-7xl', message: 'text-3xl', clock: 'text-8xl', date: 'text-4xl' },
+    'extra-large': { title: 'text-8xl', name: 'text-8xl', message: 'text-4xl', clock: 'text-9xl', date: 'text-5xl' },
   }), [])
 
   const currentFontSize = fontSizeClasses[fontSize as keyof typeof fontSizeClasses] || fontSizeClasses.large
@@ -123,7 +157,7 @@ export function PatientBoard() {
   return (
     <div 
       ref={containerRef}
-      className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-auto"
+      className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0a0f1c] to-black overflow-auto"
     >
       <audio 
         ref={audioRef} 
@@ -131,50 +165,51 @@ export function PatientBoard() {
         preload="auto"
       />
 
-      <div className="mx-auto max-w-7xl px-8 py-8">
+      <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12 text-center relative"
+          className="mb-16 flex flex-col items-center relative"
         >
-          <div className="absolute right-0 top-0 flex items-center gap-2">
+          <div className="absolute right-0 top-0 flex items-center gap-4">
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="rounded-lg p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+              className="rounded-xl p-3 text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-transparent hover:border-slate-700 backdrop-blur-sm"
               title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
             >
-              {soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              {soundEnabled ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={toggleFullscreen}
-              className="rounded-lg p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+              className="rounded-xl p-3 text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-transparent hover:border-slate-700 backdrop-blur-sm"
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
-              {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+              {isFullscreen ? <Minimize2 className="h-6 w-6" /> : <Maximize2 className="h-6 w-6" />}
             </motion.button>
           </div>
 
-          <h1 className={`font-bold text-white ${currentFontSize.title}`}>
+          <h1 className={`font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-emerald-300 ${currentFontSize.title}`}>
             {pharmacyName}
           </h1>
           
           <motion.div 
-            className="mt-6 flex items-center justify-center gap-6 text-2xl text-slate-300"
+            className="mt-8 flex flex-col items-center justify-center gap-2 text-slate-200"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex items-center gap-3 bg-slate-800/50 rounded-full px-6 py-3">
-              <Clock className="h-7 w-7 text-teal-400" />
-              <span className="font-mono tabular-nums">
+            <div className="flex flex-col items-center bg-slate-900/60 border border-slate-800/60 rounded-[3rem] px-12 py-6 backdrop-blur-xl shadow-2xl">
+              <span className={`font-mono font-bold tracking-wider tabular-nums text-teal-300 drop-shadow-[0_0_15px_rgba(45,212,191,0.5)] ${currentFontSize.clock}`}>
                 {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
+              <span className={`mt-2 font-medium text-slate-400 ${currentFontSize.date}`}>
+                {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </span>
             </div>
-            <span className="text-slate-500">{currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
           </motion.div>
         </motion.header>
 
@@ -182,26 +217,26 @@ export function PatientBoard() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex h-96 flex-col items-center justify-center"
+            className="flex h-[50vh] flex-col items-center justify-center"
           >
             <motion.div
               animate={{ 
                 scale: [1, 1.05, 1],
-                opacity: [0.5, 0.7, 0.5]
+                opacity: [0.4, 0.6, 0.4]
               }}
               transition={{ 
                 repeat: Infinity, 
-                duration: 3,
+                duration: 4,
                 ease: 'easeInOut'
               }}
             >
-              <Bell className="h-32 w-32 text-slate-600" />
+              <Bell className="h-40 w-40 text-slate-700" />
             </motion.div>
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="mt-8 text-4xl font-light text-slate-400"
+              className={`mt-12 font-light text-slate-400 ${currentFontSize.name}`}
             >
               No orders ready for pickup
             </motion.p>
@@ -209,7 +244,7 @@ export function PatientBoard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="mt-3 text-xl text-slate-500"
+              className={`mt-4 text-slate-500 ${currentFontSize.message}`}
             >
               Please wait for your name to be called
             </motion.p>
@@ -217,14 +252,14 @@ export function PatientBoard() {
         ) : (
           <>
             <motion.div 
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
               initial="hidden"
               animate="visible"
               variants={{
                 hidden: { opacity: 0 },
                 visible: {
                   opacity: 1,
-                  transition: { staggerChildren: 0.1 }
+                  transition: { staggerChildren: 0.15 }
                 }
               }}
             >
@@ -234,75 +269,86 @@ export function PatientBoard() {
                     key={record.id}
                     layout
                     variants={{
-                      hidden: { opacity: 0, scale: 0.8, y: 50 },
+                      hidden: { opacity: 0, scale: 0.8, y: 40 },
                       visible: { 
                         opacity: 1, 
                         scale: 1, 
                         y: 0,
                         transition: {
                           type: 'spring',
-                          stiffness: 260,
+                          stiffness: 200,
                           damping: 20
                         }
                       }
                     }}
-                    exit={{ opacity: 0, scale: 0.8, y: -50 }}
+                    exit={{ opacity: 0, scale: 0.8, y: -40 }}
                   >
                     <motion.div
-                      className="overflow-hidden rounded-3xl bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 p-8 shadow-2xl relative"
+                      className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-teal-500 via-emerald-600 to-teal-700 p-10 shadow-2xl"
                       animate={{ 
                         boxShadow: [
-                          '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                          '0 25px 50px -12px rgba(20, 184, 166, 0.3)',
-                          '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                          '0 20px 40px -10px rgba(0, 0, 0, 0.4)',
+                          '0 20px 40px -10px rgba(45, 212, 191, 0.4)',
+                          '0 20px 40px -10px rgba(0, 0, 0, 0.4)'
                         ]
                       }}
                       transition={{ 
                         repeat: Infinity, 
-                        duration: 2,
+                        duration: 3,
                         ease: 'easeInOut'
                       }}
                     >
-                      <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
-                      <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/5" />
-                      <div className="absolute top-4 right-4 h-16 w-16 rounded-full bg-white/5" />
+                      {/* Pulsing ring background */}
+                      <motion.div 
+                        className="absolute inset-0 rounded-[2.5rem] border-[4px] border-white/20 pointer-events-none"
+                        animate={{ 
+                          scale: [1, 1.05, 1],
+                          opacity: [0.5, 0, 0.5]
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 2,
+                          ease: "easeInOut"
+                        }}
+                      />
+
+                      <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+                      <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-black/10 blur-2xl" />
                       
-                      <div className="relative text-center">
+                      <div className="relative text-center z-10">
                         <motion.div
                           animate={{ 
-                            scale: [1, 1.15, 1],
-                            rotate: [0, 5, -5, 0]
+                            scale: [1, 1.1, 1],
                           }}
                           transition={{ 
                             repeat: Infinity, 
-                            duration: 2.5,
+                            duration: 2,
                             ease: 'easeInOut'
                           }}
-                          className="mb-4 inline-block"
+                          className="mb-6 inline-block"
                         >
                           <div className="relative">
-                            <CheckCircle className="h-14 w-14 text-white/90" />
+                            <CheckCircle className="h-20 w-20 text-white drop-shadow-md" />
                             <motion.div
-                              className="absolute inset-0 rounded-full bg-white/30"
-                              animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-                              transition={{ repeat: Infinity, duration: 1.5 }}
+                              className="absolute inset-0 rounded-full bg-white/40"
+                              animate={{ scale: [1, 1.6], opacity: [0.8, 0] }}
+                              transition={{ repeat: Infinity, duration: 2 }}
                             />
                           </div>
                         </motion.div>
                         
-                        <h2 className={`font-bold text-white ${currentFontSize.name}`}>
+                        <h2 className={`font-black tracking-tight text-white drop-shadow-lg ${currentFontSize.name}`}>
                           {maskName(record.first_name, record.last_name)}
                         </h2>
                         
-                        <p className="mt-4 text-xl text-white/80">
+                        <p className={`mt-4 font-medium text-teal-100 ${currentFontSize.message}`}>
                           {record.num_prescriptions} {record.num_prescriptions === 1 ? 'Prescription' : 'Prescriptions'}
                         </p>
                         
                         <motion.div 
-                          className="mt-6 rounded-xl bg-white/20 p-4 backdrop-blur-sm"
-                          whileHover={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          className="mt-8 rounded-2xl bg-black/20 p-5 backdrop-blur-md border border-white/10 shadow-inner"
                         >
-                          <p className={`text-center font-medium text-white ${currentFontSize.message}`}>
+                          <p className={`text-center font-semibold text-white/90 ${currentFontSize.message}`}>
                             {message}
                           </p>
                         </motion.div>
@@ -317,15 +363,15 @@ export function PatientBoard() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex justify-center mt-8"
+                className="flex justify-center mt-12"
               >
                 <motion.div
-                  animate={{ y: [0, 8, 0] }}
+                  animate={{ y: [0, 10, 0] }}
                   transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="flex flex-col items-center text-slate-500"
+                  className="flex flex-col items-center text-slate-500 bg-slate-900/50 px-6 py-3 rounded-full backdrop-blur-sm border border-slate-800"
                 >
-                  <ChevronDown className="h-6 w-6" />
-                  <span className="text-sm">Scroll for more</span>
+                  <ChevronDown className="h-8 w-8" />
+                  <span className="text-base font-medium mt-1">Scroll for more</span>
                 </motion.div>
               </motion.div>
             )}
@@ -336,15 +382,15 @@ export function PatientBoard() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-16 text-center"
+          className="mt-20 pb-8 text-center"
         >
-          <div className="inline-flex items-center gap-3 rounded-full bg-slate-800/50 px-6 py-3 text-slate-400 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-3 rounded-full bg-slate-900/80 px-8 py-4 text-slate-400 backdrop-blur-md border border-slate-800/80">
             <motion.span 
-              animate={{ scale: [1, 1.2, 1] }}
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="h-2.5 w-2.5 rounded-full bg-green-500 shadow-lg shadow-green-500/50" 
+              className="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" 
             />
-            <span>Auto-refreshing every {settings?.patient_board_refresh_rate || 10} seconds</span>
+            <span className="font-medium text-lg tracking-wide">Auto-refreshing every {settings?.patient_board_refresh_rate || 10} seconds</span>
           </div>
         </motion.footer>
       </div>
