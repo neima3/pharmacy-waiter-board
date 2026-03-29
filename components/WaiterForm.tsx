@@ -216,9 +216,12 @@ export function WaiterForm() {
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="grid gap-8 md:grid-cols-2">
+          <div className="space-y-3">
+            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">
+              MRN Search
+            </label>
             <MRNSearch
               value={mrn}
               onChange={(value) => {
@@ -231,8 +234,8 @@ export function WaiterForm() {
             />
           </div>
           
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+          <div className="space-y-3">
+            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">
               Initials <span className="text-red-500">*</span>
             </label>
             <input
@@ -247,7 +250,7 @@ export function WaiterForm() {
               placeholder="ABC"
               maxLength={3}
               className={cn(
-                'input-field uppercase',
+                'input-field uppercase text-lg font-bold tracking-widest',
                 getFieldError('initials') && 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
               )}
             />
@@ -255,7 +258,7 @@ export function WaiterForm() {
               <motion.p
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-sm text-red-500"
+                className="text-sm text-red-500 font-semibold"
               >
                 {getFieldError('initials')}
               </motion.p>
@@ -364,6 +367,7 @@ export function WaiterForm() {
                 type="button"
                 onClick={() => setNumPrescriptions(Math.max(1, numPrescriptions - 1))}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                aria-label="Decrease prescription count"
               >
                 -
               </button>
@@ -378,6 +382,7 @@ export function WaiterForm() {
                 type="button"
                 onClick={() => setNumPrescriptions(numPrescriptions + 1)}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                aria-label="Increase prescription count"
               >
                 +
               </button>
@@ -386,7 +391,7 @@ export function WaiterForm() {
           
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">Order Type</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="group" aria-label="Order type">
               {orderTypes.map((type) => (
                 <motion.button
                   key={type.value}

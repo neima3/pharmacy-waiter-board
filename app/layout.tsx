@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 import { DemoBanner } from '@/components/DemoBanner'
 import { PageTransition } from '@/components/PageTransition'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -30,9 +31,11 @@ export default function RootLayout({
           closeButton
           richColors
         />
-        <PageTransition>
-          {children}
-        </PageTransition>
+        <ErrorBoundary>
+          <PageTransition>
+            {children}
+          </PageTransition>
+        </ErrorBoundary>
       </body>
     </html>
   )

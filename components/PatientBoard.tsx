@@ -60,8 +60,24 @@ export function PatientBoard() {
   useEffect(() => {
     fetchRecords()
     const refreshRate = settings?.patient_board_refresh_rate || 10
-    const interval = setInterval(fetchRecords, refreshRate * 1000)
-    return () => clearInterval(interval)
+    let interval: NodeJS.Timeout
+
+    const startPolling = () => {
+      interval = setInterval(() => {
+        if (!document.hidden) fetchRecords()
+      }, refreshRate * 1000)
+    }
+
+    const handleVisibility = () => {
+      if (!document.hidden) fetchRecords()
+    }
+
+    startPolling()
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [fetchRecords, settings?.patient_board_refresh_rate])
 
   useEffect(() => {
@@ -178,6 +194,7 @@ export function PatientBoard() {
               onClick={() => setSoundEnabled(!soundEnabled)}
               className="rounded-xl p-3 text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-transparent hover:border-slate-700 backdrop-blur-sm"
               title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+              aria-label={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
             >
               {soundEnabled ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
             </motion.button>
@@ -187,6 +204,7 @@ export function PatientBoard() {
               onClick={toggleFullscreen}
               className="rounded-xl p-3 text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-transparent hover:border-slate-700 backdrop-blur-sm"
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="h-6 w-6" /> : <Maximize2 className="h-6 w-6" />}
             </motion.button>
@@ -251,8 +269,10 @@ export function PatientBoard() {
           </motion.div>
         ) : (
           <>
-            <motion.div 
+            <motion.div
               className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+              aria-live="polite"
+              aria-label="Ready orders"
               initial="hidden"
               animate="visible"
               variants={{
