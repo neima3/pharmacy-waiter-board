@@ -58,6 +58,8 @@ export interface AuditLog {
   timestamp: string
 }
 
+export type SettingsKey = keyof Settings
+
 export const DEFAULT_SETTINGS: Settings = {
   waiter_due_minutes: 30,
   acute_due_minutes: 60,

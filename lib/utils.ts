@@ -1,6 +1,5 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { OrderType } from './types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -13,67 +12,15 @@ export function maskName(firstName: string, lastName: string): string {
   } else {
     maskedFirst = firstName.substring(0, 2) + '***'
   }
-  
+
   let maskedLast: string
   if (lastName.length <= 3) {
     maskedLast = lastName.substring(0, 2) + '*'
   } else {
     maskedLast = lastName.substring(0, 3) + '***'
   }
-  
+
   return `${maskedFirst} ${maskedLast}`
-}
-
-export function formatTime(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-}
-
-export function formatDateTime(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
-}
-
-export function formatDOB(dob: string): string {
-  const date = new Date(dob)
-  return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
-}
-
-export function getTimeRemaining(dueTime: string): { total: number; minutes: number; seconds: number; isOverdue: boolean } {
-  const total = Date.parse(dueTime) - Date.now()
-  const isOverdue = total < 0
-  const absTotal = Math.abs(total)
-  const minutes = Math.floor((absTotal % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((absTotal % (1000 * 60)) / 1000)
-  
-  return { total, minutes, seconds, isOverdue }
-}
-
-export function formatTimeRemaining(dueTime: string): string {
-  const { total, minutes, seconds, isOverdue } = getTimeRemaining(dueTime)
-  if (isOverdue) {
-    return `Overdue by ${minutes}m`
-  }
-  if (total < 60000) {
-    return `${seconds}s`
-  }
-  return `${minutes}m ${seconds}s`
-}
-
-export function getElapsedMinutes(createdAt: string): number {
-  return Math.floor((Date.now() - Date.parse(createdAt)) / 60000)
-}
-
-export function calculateDueTime(orderType: OrderType): string {
-  const now = new Date()
-  const minutes = orderType === 'waiter' ? 30 : 60
-  now.setMinutes(now.getMinutes() + minutes)
-  return now.toISOString()
 }
 
 export function getOrderTypeLabel(orderType: string): string {
@@ -94,7 +41,7 @@ export function getOrderTypeLabel(orderType: string): string {
 export function parseFlexibleDate(input: string): string | null {
   if (!input) return null
   const cleaned = input.trim().replace(/\s+/g, '')
-  
+
   if (/^\d{6}$/.test(cleaned)) {
     const mm = cleaned.slice(0, 2)
     const dd = cleaned.slice(2, 4)
@@ -108,7 +55,7 @@ export function parseFlexibleDate(input: string): string | null {
     const yyyy = cleaned.slice(4, 8)
     return `${yyyy}-${mm}-${dd}`
   }
-  
+
   const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
   if (slashMatch) {
     const [, m, d, y] = slashMatch
@@ -117,10 +64,14 @@ export function parseFlexibleDate(input: string): string | null {
     const year = y.length === 2 ? (parseInt(y) > 50 ? `19${y}` : `20${y}`) : y
     return `${year}-${mm}-${dd}`
   }
-  
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
     return cleaned
   }
-  
+
   return null
 }
+
+// Re-exports from time.ts for backward compatibility
+export { getTimeRemaining, formatTimeRemaining, getElapsedMinutes, formatTime, formatDateTime, formatDOB, calculateDueTime, getUrgency, getProgressPercentage, getProgressColor } from './time'
+export type { UrgencyLevel } from './time'
