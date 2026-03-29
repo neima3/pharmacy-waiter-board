@@ -79,6 +79,11 @@ async function _initDb() {
         timestamp TIMESTAMPTZ DEFAULT NOW()
       )
     `
+    // Create indexes for hot query paths
+    await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_active ON waiter_records(ready, completed)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_order_type ON waiter_records(order_type)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_due_time ON waiter_records(due_time)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_created_at ON waiter_records(created_at)`
     // Insert default settings
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
       await sql`

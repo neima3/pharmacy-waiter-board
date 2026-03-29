@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { initializeDatabase, getActiveRecords, getProductionRecords, getCompletedRecords, createRecord, getMailQueueRecords, getCompletedMailRecords, getMailHistoryRecords } from '@/lib/db'
 import { calculateDueTime } from '@/lib/utils'
 import { OrderType } from '@/lib/types'
+import { validateRecord, sanitizeString } from '@/lib/validation'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,19 +41,21 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase()
     const body = await request.json()
-    const { mrn, first_name, last_name, dob, num_prescriptions, comments, initials, order_type } = body
 
-    if (!first_name || !last_name || !initials) {
-      return NextResponse.json({ error: 'Missing required fields: first_name, last_name, initials' }, { status: 400 })
+    const validation = validateRecord(body)
+    if (!validation.valid) {
+      return NextResponse.json({ error: 'Validation failed', fields: validation.fields }, { status: 400 })
     }
+
+    const { mrn, first_name, last_name, dob, num_prescriptions, comments, initials, order_type } = body
 
     const record = await createRecord({
       mrn: mrn || '',
-      first_name,
-      last_name,
+      first_name: sanitizeString(first_name),
+      last_name: sanitizeString(last_name),
       dob: dob || '',
       num_prescriptions: num_prescriptions || 1,
-      comments: comments || '',
+      comments: sanitizeString(comments || ''),
       initials,
       order_type: (order_type || 'waiter') as OrderType,
       due_time: calculateDueTime((order_type || 'waiter') as OrderType),

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initializeDatabase, getPatientByMRN } from '@/lib/db'
+import { validateMRN } from '@/lib/validation'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
     await initializeDatabase()
     const mrn = request.nextUrl.searchParams.get('mrn')
     if (!mrn) return NextResponse.json({ error: 'MRN is required' }, { status: 400 })
+
+    const mrnResult = validateMRN(mrn)
+    if (!mrnResult.valid) {
+      return NextResponse.json({ error: mrnResult.message }, { status: 400 })
+    }
 
     const patient = await getPatientByMRN(mrn)
     if (!patient) return NextResponse.json({ found: false })

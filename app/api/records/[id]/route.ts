@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initializeDatabase, getRecord, updateRecord, deleteRecord } from '@/lib/db'
+import { validateComments, validateInitials, sanitizeString } from '@/lib/validation'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   _request: NextRequest,
@@ -27,9 +30,31 @@ export async function PUT(
     const body = await request.json()
     const { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed } = body
 
+    if (comments !== undefined) {
+      const commentsResult = validateComments(comments)
+      if (!commentsResult.valid) {
+        return NextResponse.json({ error: commentsResult.message }, { status: 400 })
+      }
+    }
+
+    if (initials !== undefined) {
+      const initialsResult = validateInitials(initials)
+      if (!initialsResult.valid) {
+        return NextResponse.json({ error: initialsResult.message }, { status: 400 })
+      }
+    }
+
+    if (num_prescriptions !== undefined) {
+      if (!Number.isInteger(num_prescriptions) || num_prescriptions < 1) {
+        return NextResponse.json({ error: 'num_prescriptions must be a positive integer' }, { status: 400 })
+      }
+    }
+
+    const sanitizedComments = comments !== undefined ? sanitizeString(comments) : undefined
+
     const record = await updateRecord(
       parseInt(id, 10),
-      { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed },
+      { comments: sanitizedComments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed },
       initials
     )
 
