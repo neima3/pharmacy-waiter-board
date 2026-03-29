@@ -59,54 +59,84 @@ const cards = [
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiM5QzkyQUMiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40"></div>
       <Navigation />
-      <main className="mx-auto max-w-5xl px-4 py-16">
+      <main className="mx-auto max-w-6xl px-4 py-20 relative">
         <FadeIn>
-          <div className="text-center mb-16">
+          <div className="text-center mb-20">
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-teal-700 mb-8 shadow-sm border border-teal-100/50 ring-1 ring-teal-50"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
+              className="inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 px-6 py-2.5 text-sm font-bold text-white mb-10 shadow-xl shadow-teal-500/30"
             >
-              <Sparkles className="h-4 w-4 text-teal-500" />
-              Pharmacy Waiter Board
+              <Sparkles className="h-4 w-4 animate-pulse" />
+              Premium Pharmacy Management
+              <Sparkles className="h-4 w-4 animate-pulse" />
             </motion.div>
-            <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl mb-6">
-              Welcome Back
-            </h1>
-            <p className="mt-4 text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Manage pharmacy orders efficiently with our waiter board system. 
-              Create orders, track progress, and keep patients informed.
-            </p>
+            <motion.h1 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-6xl sm:text-7xl font-black tracking-tight mb-6"
+            >
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900">
+                Welcome to
+              </span>
+              <br />
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 animate-gradient">
+                Pharmacy Board
+              </span>
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mt-6 text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-medium"
+            >
+              Streamline your pharmacy operations with our modern waiter board system. 
+              <span className="text-teal-600 font-semibold"> Create orders, track progress, and keep patients informed</span> with real-time updates.
+            </motion.p>
           </div>
         </FadeIn>
 
-        <StaggerContainer className="grid gap-6 sm:grid-cols-2">
-          {cards.map((card) => (
+        <StaggerContainer className="grid gap-8 sm:grid-cols-2">
+          {cards.map((card, index) => (
             <StaggerItem key={card.href}>
-              <Link href={card.href} className="block outline-none">
+              <Link href={card.href} className="block outline-none group">
                 <motion.div
-                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileHover={{ scale: 1.03, y: -8 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`group relative overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-br ${card.lightGradient} p-8 shadow-lg shadow-slate-200/50 transition-all duration-300 ${card.shadowColor} ${card.borderColor} backdrop-blur-xl`}
+                  initial={{ opacity: 0, y: 50 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * index }}
+                  className={`relative overflow-hidden rounded-[2.5rem] border-2 border-white/80 bg-gradient-to-br ${card.lightGradient} p-10 shadow-2xl transition-all duration-500 hover:shadow-3xl ${card.shadowColor} ${card.borderColor} backdrop-blur-xl group-hover:border-2`}
                 >
-                  <div className={`absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-br ${card.gradient} opacity-5 blur-3xl transition-opacity duration-500 group-hover:opacity-15`} />
+                  <div className={`absolute -right-32 -top-32 h-96 w-96 rounded-full bg-gradient-to-br ${card.gradient} opacity-0 blur-3xl transition-opacity duration-700 group-hover:opacity-20`} />
+                  <div className={`absolute -left-32 -bottom-32 h-96 w-96 rounded-full bg-gradient-to-br ${card.gradient} opacity-0 blur-3xl transition-opacity duration-700 group-hover:opacity-10`} />
                   
                   <div className="relative z-10 flex flex-col items-start gap-6">
                     <div className="flex w-full items-center justify-between">
-                      <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl ${card.iconBg} shadow-sm ring-1 ring-white/50`}>
-                        <card.icon className={`h-8 w-8 ${card.iconColor}`} />
-                      </div>
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm opacity-0 -translate-x-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0`}>
-                        <ArrowRight className={`h-5 w-5 ${card.iconColor}`} />
-                      </div>
+                      <motion.div 
+                        whileHover={{ rotate: 360, scale: 1.1 }}
+                        transition={{ duration: 0.6, type: 'spring' }}
+                        className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl ${card.iconBg} shadow-xl ring-4 ring-white/50`}
+                      >
+                        <card.icon className={`h-10 w-10 ${card.iconColor}`} />
+                      </motion.div>
+                      <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        whileHover={{ opacity: 1, x: 0 }}
+                        className={`flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-lg opacity-0 -translate-x-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0`}
+                      >
+                        <ArrowRight className={`h-6 w-6 ${card.iconColor}`} />
+                      </motion.div>
                     </div>
                     
                     <div>
-                      <h3 className="text-2xl font-bold text-slate-900 mb-2">{card.title}</h3>
-                      <p className="text-slate-600 font-medium leading-relaxed">{card.description}</p>
+                      <h3 className="text-3xl font-black text-slate-900 mb-3">{card.title}</h3>
+                      <p className="text-slate-600 font-semibold leading-relaxed text-lg">{card.description}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -115,30 +145,47 @@ export default function HomePage() {
           ))}
         </StaggerContainer>
 
-        <FadeIn delay={0.4}>
-          <div className="mt-16 overflow-hidden rounded-[2.5rem] bg-slate-900 p-1 relative shadow-2xl shadow-slate-900/20">
-            <div className="absolute inset-0 bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 opacity-20 animate-pulse"></div>
-            <div className="relative rounded-[2.4rem] bg-gradient-to-br from-slate-900 to-slate-800 p-10 md:p-12 text-white overflow-hidden">
-              <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-teal-500/20 blur-3xl"></div>
-              <div className="absolute -left-32 -bottom-32 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl"></div>
+        <FadeIn delay={0.5}>
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="mt-20 overflow-hidden rounded-[3rem] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 relative shadow-3xl"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 opacity-20 animate-pulse blur-xl"></div>
+            <div className="relative rounded-[2.8rem] bg-gradient-to-br from-slate-900 to-slate-800 p-12 md:p-16 text-white overflow-hidden">
+              <div className="absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-teal-500/20 blur-3xl animate-pulse"></div>
+              <div className="absolute -left-40 -bottom-40 h-[500px] w-[500px] rounded-full bg-purple-500/20 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
               
-              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
                 <div>
-                  <h2 className="text-3xl font-bold mb-3 tracking-tight">Need Help?</h2>
-                  <p className="text-lg text-slate-300 font-medium">
-                    Check out our documentation and keyboard shortcuts
-                  </p>
+                  <motion.h2 
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className="text-4xl font-black mb-4 tracking-tight"
+                  >
+                    Need Help?
+                  </motion.h2>
+                  <motion.p 
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.8 }}
+                    className="text-xl text-slate-300 font-semibold"
+                  >
+                    Check out our comprehensive documentation
+                  </motion.p>
                 </div>
                 <Link
                   href="/help"
-                  className="group inline-flex items-center gap-3 rounded-2xl bg-white/10 px-8 py-4 font-semibold backdrop-blur-md transition-all duration-300 hover:bg-white hover:text-slate-900 hover:shadow-xl hover:shadow-white/20 hover:-translate-y-1"
+                  className="group inline-flex items-center gap-4 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 px-10 py-5 font-bold text-lg backdrop-blur-md transition-all duration-300 hover:shadow-2xl hover:shadow-teal-500/50 hover:-translate-y-2"
                 >
                   View Help Center
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="h-6 w-6 transition-transform group-hover:translate-x-2" />
                 </Link>
               </div>
             </div>
-          </div>
+          </motion.div>
         </FadeIn>
       </main>
     </div>

@@ -12,8 +12,8 @@ export function Skeleton({ className }: SkeletonProps) {
     <motion.div
       initial={{ opacity: 0.5 }}
       animate={{ opacity: 1 }}
-      transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1 }}
-      className={cn('rounded-lg bg-gray-200', className)}
+      transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1.5 }}
+      className={cn('rounded-xl bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 shimmer', className)}
     />
   )
 }
