@@ -1,7 +1,6 @@
-import { neon } from '@neondatabase/serverless';
+import { createSqlClient } from './db'
 
-const connectionString = 'postgresql://neondb_owner:npg_eZ6xqNDPQrH1@ep-crimson-waterfall-ai2glpqn.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-const sql = neon(connectionString);
+const sql = createSqlClient()
 
 async function test() {
   console.log('1. Checking current pharmacy_name...');
@@ -21,4 +20,4 @@ async function test() {
   process.exit(0);
 }
 
-test().catch(console.error);
+test().catch(console.error)

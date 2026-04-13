@@ -1,10 +1,8 @@
-import { neon } from '@neondatabase/serverless';
-
-const connectionString = 'postgresql://neondb_owner:npg_eZ6xqNDPQrH1@ep-crimson-waterfall-ai2glpqn.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+import { createSqlClient } from './db'
 
 async function test() {
   // Create SQL function with transaction option
-  const sql = neon(connectionString, { 
+  const sql = createSqlClient({
     fetchOptions: {
       cache: 'no-store'
     }
@@ -26,11 +24,11 @@ async function test() {
   console.log('Read result:', readResult);
   
   // New connection
-  const sql2 = neon(connectionString);
+  const sql2 = createSqlClient();
   const readResult2 = await sql2`SELECT key, value FROM settings WHERE key = 'pharmacy_name'`;
   console.log('Read from new connection:', readResult2);
   
   process.exit(0);
 }
 
-test().catch(console.error);
+test().catch(console.error)

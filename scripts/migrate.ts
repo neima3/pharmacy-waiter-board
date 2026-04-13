@@ -1,6 +1,6 @@
-import { neon } from '@neondatabase/serverless';
+import { createSqlClient } from './db'
 
-const sql = neon(process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_eZ6xqNDPQrH1@ep-crimson-waterfall-ai2glpqn.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require');
+const sql = createSqlClient()
 
 async function migrate() {
   try {
@@ -15,4 +15,4 @@ async function migrate() {
   process.exit(0);
 }
 
-migrate();
+migrate()
