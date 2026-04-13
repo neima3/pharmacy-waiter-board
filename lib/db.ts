@@ -1,11 +1,12 @@
 import { neon } from '@neondatabase/serverless'
 import { Patient, WaiterRecord, AuditLog, DEFAULT_SETTINGS, OrderType } from './types'
+import { resolveDatabaseUrl } from './db-mode'
 
 let sqlInstance: ReturnType<typeof neon> | null = null
 
 const getDb = () => {
   if (!sqlInstance) {
-    sqlInstance = neon(process.env.DATABASE_URL!, {
+    sqlInstance = neon(resolveDatabaseUrl(), {
       fetchOptions: {
         cache: 'no-store' as RequestCache
       }

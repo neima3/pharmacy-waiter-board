@@ -1,17 +1,10 @@
 import { neon } from '@neondatabase/serverless'
+import { resolveDatabaseUrl } from '../lib/db-mode'
 
 type NeonOptions = Parameters<typeof neon>[1]
 
 export function getDatabaseUrl() {
-  const url = process.env.DATABASE_URL?.trim()
-
-  if (!url) {
-    throw new Error(
-      'DATABASE_URL is required. Set it in your shell or copy .env.example to .env.local before running scripts.'
-    )
-  }
-
-  return url
+  return resolveDatabaseUrl()
 }
 
 export function createSqlClient(options?: NeonOptions) {
