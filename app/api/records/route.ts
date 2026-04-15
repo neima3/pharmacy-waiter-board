@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { initializeDatabase, getActiveRecords, getProductionRecords, getCompletedRecords, createRecord, getMailQueueRecords, getCompletedMailRecords, getMailHistoryRecords } from '@/lib/db'
+import { initializeDatabase, getActiveRecords, getProductionRecords, getCompletedRecords, createRecord, getMailQueueRecords, getCompletedMailRecords, getMailHistoryRecords, syncExpiredWorkflowEvents } from '@/lib/db'
 import { calculateDueTime } from '@/lib/utils'
 import { OrderType } from '@/lib/types'
 import { validateRecord, sanitizeString } from '@/lib/validation'
@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     await initializeDatabase()
+    await syncExpiredWorkflowEvents()
     const type = request.nextUrl.searchParams.get('type')
     let records
     switch (type) {

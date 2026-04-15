@@ -2,6 +2,15 @@ import { neon } from '@neondatabase/serverless'
 import { Patient, WaiterRecord, AuditLog, DEFAULT_SETTINGS, OrderType } from './types'
 import { resolveDatabaseUrl } from './db-mode'
 import { BOARD_SOURCE_APP, DEFAULT_ACTIVE_LOCATION } from './launch-context'
+import {
+  WorkflowEventPayload,
+  WorkflowEventStoragePayload,
+  WorkflowEventType,
+  buildWorkflowEventPayload,
+  hydrateWorkflowEventPayload,
+  isExpiredReadyRecord,
+  toWorkflowEventStoragePayload,
+} from './workflow-events'
 
 let sqlInstance: ReturnType<typeof neon> | null = null
 
@@ -67,6 +76,43 @@ function normalizeWaiterRecord(row: Record<string, unknown>): WaiterRecord {
     moved_to_mail_at: row.moved_to_mail_at ? String(row.moved_to_mail_at) : null,
     mailed: toBoolean(row.mailed),
     mailed_at: row.mailed_at ? String(row.mailed_at) : null,
+  }
+}
+
+export interface WorkflowEventRow {
+  id: number
+  event_type: WorkflowEventType
+  event_key: string | null
+  record_id: number
+  payload: WorkflowEventPayload
+  created_at: string
+}
+
+function parseWorkflowEventPayload(value: unknown): WorkflowEventStoragePayload {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('Invalid workflow event payload')
+  }
+
+  const parsed = JSON.parse(value) as WorkflowEventStoragePayload
+  if (!parsed || typeof parsed !== 'object' || !('type' in parsed) || !('recordId' in parsed)) {
+    throw new Error('Invalid workflow event payload')
+  }
+  return parsed
+}
+
+function normalizeWorkflowEventRow(row: Record<string, unknown>): WorkflowEventRow {
+  const payload = hydrateWorkflowEventPayload(
+    Number(row.id),
+    parseWorkflowEventPayload(row.payload),
+  )
+
+  return {
+    id: Number(row.id),
+    event_type: String(row.event_type) as WorkflowEventType,
+    event_key: row.event_key ? String(row.event_key) : null,
+    record_id: Number(row.record_id),
+    payload,
+    created_at: toText(row.created_at),
   }
 }
 
@@ -144,6 +190,16 @@ async function _initDb() {
         timestamp TIMESTAMPTZ DEFAULT NOW()
       )
     `
+    await sql`
+      CREATE TABLE IF NOT EXISTS workflow_events (
+        id SERIAL PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        event_key TEXT UNIQUE,
+        record_id INTEGER NOT NULL,
+        payload TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `
     // Create indexes for hot query paths
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_active ON waiter_records(ready, completed)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_order_type ON waiter_records(order_type)`
@@ -151,6 +207,7 @@ async function _initDb() {
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_created_at ON waiter_records(created_at)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_patient_id ON waiter_records(patient_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_location_id ON waiter_records(active_location_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_workflow_events_created_at ON workflow_events(created_at)`
     await sql`
       UPDATE waiter_records
       SET
@@ -254,7 +311,12 @@ export async function getActiveRecords(): Promise<WaiterRecord[]> {
 
 export async function getReadyWaiterRecords(): Promise<WaiterRecord[]> {
   const sql = getDb()
-  const cutoff = new Date(Date.now() - 45 * 60 * 1000).toISOString()
+  const settings = await getSettings()
+  const rawAutoClearMinutes = Number(settings.auto_clear_minutes ?? DEFAULT_SETTINGS.auto_clear_minutes)
+  const autoClearMinutes = Number.isFinite(rawAutoClearMinutes) && rawAutoClearMinutes > 0
+    ? rawAutoClearMinutes
+    : DEFAULT_SETTINGS.auto_clear_minutes
+  const cutoff = new Date(Date.now() - autoClearMinutes * 60 * 1000).toISOString()
   const rows = await sql`
     SELECT * FROM waiter_records
     WHERE ready = TRUE
@@ -378,6 +440,12 @@ export async function createRecord(data: {
   ` as WaiterRecord[]
   const record = normalizeWaiterRecord(rows[0] as unknown as Record<string, unknown>)
   await logAudit(record.id, 'CREATE', null, record, data.initials)
+  await appendWorkflowEvent({
+    eventType: 'create',
+    record,
+    previousRecord: null,
+    actorInitials: data.initials,
+  })
   return record
 }
 
@@ -393,7 +461,8 @@ export async function updateRecord(
     moved_to_mail?: boolean
     mailed?: boolean
   },
-  staffInitials?: string
+  staffInitials?: string,
+  auditAction: WorkflowEventType = 'update'
 ): Promise<WaiterRecord | null> {
   const sql = getDb()
   const existing = await sql`SELECT * FROM waiter_records WHERE id = ${id}` as WaiterRecord[]
@@ -464,7 +533,13 @@ export async function updateRecord(
   }
 
   const updated = normalizeWaiterRecord(rows[0] as unknown as Record<string, unknown>)
-  await logAudit(id, 'UPDATE', old, updated, staffInitials)
+  await logAudit(id, auditAction.toUpperCase(), old, updated, staffInitials)
+  await appendWorkflowEvent({
+    eventType: auditAction,
+    record: updated,
+    previousRecord: old,
+    actorInitials: staffInitials ?? null,
+  })
   return updated
 }
 
@@ -527,4 +602,102 @@ async function logAudit(recordId: number, action: string, oldValues: WaiterRecor
     INSERT INTO audit_log (record_id, action, old_values, new_values, staff_initials)
     VALUES (${recordId}, ${action}, ${oldValues ? JSON.stringify(oldValues) : null}, ${newValues ? JSON.stringify(newValues) : null}, ${initials ?? null})
   `
+}
+
+export async function appendWorkflowEvent({
+  eventType,
+  record,
+  previousRecord = null,
+  actorInitials = null,
+  reason = null,
+  eventKey = null,
+}: {
+  eventType: WorkflowEventType
+  record: WaiterRecord
+  previousRecord?: WaiterRecord | null
+  actorInitials?: string | null
+  reason?: 'auto_clear' | null
+  eventKey?: string | null
+}): Promise<WorkflowEventRow | null> {
+  const sql = getDb()
+  const payload = buildWorkflowEventPayload({
+    id: 0,
+    type: eventType,
+    record,
+    previousRecord,
+    actorInitials,
+    reason,
+  })
+  const storagePayload = toWorkflowEventStoragePayload(payload)
+  const rows = eventKey
+    ? await sql`
+        INSERT INTO workflow_events (event_type, event_key, record_id, payload)
+        VALUES (${eventType}, ${eventKey}, ${record.id}, ${JSON.stringify(storagePayload)})
+        ON CONFLICT (event_key) DO NOTHING
+        RETURNING *
+      `
+    : await sql`
+        INSERT INTO workflow_events (event_type, record_id, payload)
+        VALUES (${eventType}, ${record.id}, ${JSON.stringify(storagePayload)})
+        RETURNING *
+      `
+
+  const row = (rows as Record<string, unknown>[])[0]
+  return row ? normalizeWorkflowEventRow(row) : null
+}
+
+export async function getWorkflowEventsSince(afterId = 0, limit = 200): Promise<WorkflowEventRow[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM workflow_events
+    WHERE id > ${afterId}
+    ORDER BY id ASC
+    LIMIT ${limit}
+  `
+  return (rows as Record<string, unknown>[]).map(normalizeWorkflowEventRow)
+}
+
+export async function getLatestWorkflowEventId(): Promise<number> {
+  const sql = getDb()
+  const rows = await sql`SELECT id FROM workflow_events ORDER BY id DESC LIMIT 1` as Record<string, unknown>[]
+  return rows[0] ? Number(rows[0].id) : 0
+}
+
+export async function syncExpiredWorkflowEvents(): Promise<WorkflowEventRow[]> {
+  const sql = getDb()
+  const settings = await getSettings()
+  const autoClearMinutes = Number(settings.auto_clear_minutes ?? DEFAULT_SETTINGS.auto_clear_minutes)
+  const normalizedAutoClearMinutes = Number.isFinite(autoClearMinutes) && autoClearMinutes > 0
+    ? autoClearMinutes
+    : DEFAULT_SETTINGS.auto_clear_minutes
+
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE order_type = 'waiter'
+      AND ready = TRUE
+      AND completed = FALSE
+      AND ready_at IS NOT NULL
+      AND ready_at <= NOW() - (${normalizedAutoClearMinutes} * INTERVAL '1 minute')
+    ORDER BY ready_at ASC
+  `
+
+  const expiredEvents: WorkflowEventRow[] = []
+  for (const row of rows as Record<string, unknown>[]) {
+    const record = normalizeWaiterRecord(row)
+    if (!isExpiredReadyRecord(record, normalizedAutoClearMinutes)) continue
+    const eventKey = `expiration:${record.id}:${record.ready_at}`
+    const inserted = await appendWorkflowEvent({
+      eventType: 'expiration',
+      record,
+      previousRecord: record,
+      actorInitials: null,
+      reason: 'auto_clear',
+      eventKey,
+    })
+    if (inserted) {
+      expiredEvents.push(inserted)
+    }
+  }
+
+  return expiredEvents
 }

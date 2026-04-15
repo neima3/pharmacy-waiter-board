@@ -66,7 +66,8 @@ export async function PUT(
         moved_to_mail: workflowStateUpdate?.moved_to_mail ?? moved_to_mail,
         mailed: workflowStateUpdate?.mailed ?? mailed,
       },
-      initials
+      initials,
+      'update'
     )
 
     if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })

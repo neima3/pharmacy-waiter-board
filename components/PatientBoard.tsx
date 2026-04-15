@@ -6,6 +6,7 @@ import { Bell, Clock, CheckCircle, Maximize2, Minimize2, Volume2, VolumeX, Chevr
 import { WaiterRecord, Settings } from '@/lib/types'
 import { maskName } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useWorkflowEventStream } from '@/hooks/useWorkflowEventStream'
 
 export function PatientBoard() {
   const [records, setRecords] = useState<WaiterRecord[]>([])
@@ -57,28 +58,18 @@ export function PatientBoard() {
     }
   }, [prevRecordIds, playDingSound])
 
+  useWorkflowEventStream(fetchRecords)
+
   useEffect(() => {
     fetchRecords()
-    const refreshRate = settings?.patient_board_refresh_rate || 10
-    let interval: NodeJS.Timeout
-
-    const startPolling = () => {
-      interval = setInterval(() => {
-        if (!document.hidden) fetchRecords()
-      }, refreshRate * 1000)
-    }
-
     const handleVisibility = () => {
       if (!document.hidden) fetchRecords()
     }
-
-    startPolling()
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
-      clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [fetchRecords, settings?.patient_board_refresh_rate])
+  }, [fetchRecords])
 
   useEffect(() => {
     const timeInterval = setInterval(() => {
@@ -410,7 +401,7 @@ export function PatientBoard() {
               transition={{ repeat: Infinity, duration: 2 }}
               className="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" 
             />
-            <span className="font-medium text-lg tracking-wide">Auto-refreshing every {settings?.patient_board_refresh_rate || 10} seconds</span>
+            <span className="font-medium text-lg tracking-wide">Live realtime updates via source events</span>
           </div>
         </motion.footer>
       </div>

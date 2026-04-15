@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
-import { initializeDatabase, getReadyWaiterRecords } from '@/lib/db'
+import { initializeDatabase, getReadyWaiterRecords, syncExpiredWorkflowEvents } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
     await initializeDatabase()
+    await syncExpiredWorkflowEvents()
     const records = await getReadyWaiterRecords()
     return NextResponse.json(records)
   } catch (error) {

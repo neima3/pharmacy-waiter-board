@@ -14,7 +14,7 @@ export async function POST(
     const record = await getRecord(parseInt(id, 10))
     if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
 
-    const updated = await updateRecord(record.id, workflowStateToUpdate('archived'), record.initials)
+    const updated = await updateRecord(record.id, workflowStateToUpdate('archived'), record.initials, 'archive')
     if (!updated) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
     return NextResponse.json({ record: updated, workflow_state: 'archived' })
   } catch (error) {

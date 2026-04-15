@@ -18,7 +18,8 @@ export async function POST(
     const updated = await updateRecord(
       record.id,
       workflowStateToUpdate(nextState),
-      record.initials
+      record.initials,
+      'advance'
     )
     if (!updated) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
 

@@ -15,6 +15,7 @@ import { QuickAddModal } from '@/components/production/QuickAddModal'
 import { MailWorkflow } from '@/components/production/MailWorkflow'
 import { CompletedTab } from '@/components/production/CompletedTab'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useWorkflowEventStream } from '@/hooks/useWorkflowEventStream'
 
 type TabType = 'active' | 'completed'
 type ViewMode = 'table' | 'cards' | 'kanban'
@@ -100,18 +101,13 @@ export function ProductionBoard() {
     }
   }, [pruneStale])
 
+  useWorkflowEventStream(fetchRecords)
+
   useEffect(() => {
     fetchRecords()
-    let interval: NodeJS.Timeout
-    const startPolling = () => {
-      interval = setInterval(() => {
-        if (!document.hidden) fetchRecords()
-      }, 10000)
-    }
     const handleVisibility = () => { if (!document.hidden) fetchRecords() }
-    startPolling()
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', handleVisibility) }
+    return () => { document.removeEventListener('visibilitychange', handleVisibility) }
   }, [fetchRecords])
 
   const handleUpdate = useCallback(async (id: number, updates: Partial<WaiterRecord>) => {

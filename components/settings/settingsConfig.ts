@@ -63,7 +63,7 @@ export const settingsSections: SettingSectionConfig[] = [
         { value: 'large', label: 'Large' },
         { value: 'extra-large', label: 'Extra Large' },
       ]},
-      { key: 'patient_board_refresh_rate', label: 'Refresh Rate (seconds)', type: 'number', min: 5, max: 60 },
+      { key: 'patient_board_refresh_rate', label: 'Fallback Refresh Rate (seconds)', description: 'Used only when realtime event updates are unavailable', type: 'number', min: 5, max: 60 },
     ],
   },
   {
