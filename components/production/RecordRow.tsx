@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo, memo, useRef } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { Check, Trash2, Printer, CheckCircle, Edit3, X, Clock, Pill, MessageSquare } from 'lucide-react'
 import { WaiterRecord } from '@/lib/types'
+import { buildPatientLaunchContext, buildPatientLaunchHref } from '@/lib/launch-context'
 import { cn, formatTimeRemaining, getTimeRemaining, formatTime, getElapsedMinutes } from '@/lib/utils'
 import { OrderTypeBadge } from '@/components/OrderTypeBadge'
 
@@ -60,6 +62,7 @@ export const RecordRow = memo(function RecordRow({ record, onUpdate, onDelete, i
 
   const isLongComment = record.comments && record.comments.length > 100
   const displayComment = (!showFullComment && isLongComment) ? record.comments.slice(0, 100) + '...' : record.comments
+  const launchHref = buildPatientLaunchHref(buildPatientLaunchContext(record))
 
   const sz = largeDisplay ? {
     name: 'text-2xl', info: 'text-lg', countdown: 'text-2xl', badge: 'text-sm px-2.5 py-1', action: 'h-6 w-6', actionBtn: 'px-4 py-2.5 text-base', comment: 'text-lg', pad: 'px-6 py-5', gap: 'gap-4',
@@ -104,6 +107,9 @@ export const RecordRow = memo(function RecordRow({ record, onUpdate, onDelete, i
           <span className={cn('font-semibold text-gray-500 uppercase flex-shrink-0', largeDisplay ? 'text-base' : 'text-sm')}>
             {record.initials}
           </span>
+          <span className={cn('rounded-full bg-teal-100 text-teal-700 font-semibold flex-shrink-0', sz.badge)}>
+            {record.active_location_name}
+          </span>
           {record.printed && (
             <span className={cn('inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 font-semibold flex-shrink-0', sz.badge)}>
               <Printer className="h-3 w-3" /> Printed
@@ -138,6 +144,15 @@ export const RecordRow = memo(function RecordRow({ record, onUpdate, onDelete, i
           </div>
 
           <div className={cn('flex items-center', largeDisplay ? 'gap-2' : 'gap-1.5')}>
+            <Link
+              href={launchHref}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg bg-teal-600 font-semibold text-white transition-colors hover:bg-teal-700',
+                sz.actionBtn,
+              )}
+            >
+              Launch
+            </Link>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

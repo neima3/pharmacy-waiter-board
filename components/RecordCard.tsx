@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { 
   Printer, 
   CheckCircle, 
@@ -15,6 +16,7 @@ import {
   Square
 } from 'lucide-react'
 import { WaiterRecord } from '@/lib/types'
+import { buildPatientLaunchContext, buildPatientLaunchHref } from '@/lib/launch-context'
 import { cn, formatTimeRemaining, getTimeRemaining, getElapsedMinutes, getOrderTypeLabel, formatTime, formatDOB } from '@/lib/utils'
 
 interface RecordCardProps {
@@ -101,6 +103,7 @@ export function RecordCard({ record, onUpdate, onDelete, isSelected = false, onS
   )
 
   const elapsedMinutes = getElapsedMinutes(record.created_at)
+  const launchHref = buildPatientLaunchHref(buildPatientLaunchContext(record))
 
   return (
     <motion.div
@@ -170,6 +173,7 @@ export function RecordCard({ record, onUpdate, onDelete, isSelected = false, onS
               <strong>{record.num_prescriptions}</strong> Rx
             </span>
             <span>By: <strong>{record.initials}</strong></span>
+            <span>Location: <strong>{record.active_location_name}</strong></span>
           </div>
         </div>
 
@@ -253,6 +257,12 @@ export function RecordCard({ record, onUpdate, onDelete, isSelected = false, onS
 
       <div className="mt-4 flex items-center justify-between border-t pt-4">
         <div className="flex items-center gap-4">
+          <Link
+            href={launchHref}
+            className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
+          >
+            Launch patient
+          </Link>
           <label className="flex cursor-pointer items-center gap-2 group">
             <input
               type="checkbox"

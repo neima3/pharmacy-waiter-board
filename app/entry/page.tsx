@@ -1,8 +1,7 @@
-'use client'
-
 import { Navigation } from '@/components/Navigation'
-import { WaiterForm } from '@/components/WaiterForm'
 import { FadeIn } from '@/components/PageTransition'
+import { EntryFormPanel } from '@/components/EntryFormPanel'
+import { Suspense } from 'react'
 
 export default function EntryPage() {
   return (
@@ -18,7 +17,9 @@ export default function EntryPage() {
         
         <FadeIn delay={0.1}>
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <WaiterForm />
+            <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-gray-100" />}>
+              <EntryFormPanel />
+            </Suspense>
           </div>
         </FadeIn>
         

@@ -3,6 +3,7 @@ import { initializeDatabase, getActiveRecords, getProductionRecords, getComplete
 import { calculateDueTime } from '@/lib/utils'
 import { OrderType } from '@/lib/types'
 import { validateRecord, sanitizeString } from '@/lib/validation'
+import { normalizePatientLaunchContext } from '@/lib/launch-context'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,10 +48,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Validation failed', fields: validation.fields }, { status: 400 })
     }
 
+    const launchContext = normalizePatientLaunchContext(body)
+    if (!launchContext.valid) {
+      return NextResponse.json({ error: launchContext.message, fields: launchContext.fields }, { status: 400 })
+    }
+
     const { mrn, first_name, last_name, dob, num_prescriptions, comments, initials, order_type } = body
+    const patientName = sanitizeString(launchContext.context.patientName)
 
     const record = await createRecord({
       mrn: mrn || '',
+      patient_id: launchContext.context.patientId ?? null,
+      patient_name: patientName,
       first_name: sanitizeString(first_name),
       last_name: sanitizeString(last_name),
       dob: dob || '',
@@ -59,6 +68,10 @@ export async function POST(request: NextRequest) {
       initials,
       order_type: (order_type || 'waiter') as OrderType,
       due_time: calculateDueTime((order_type || 'waiter') as OrderType),
+      active_location_id: sanitizeString(launchContext.context.activeLocationId),
+      active_location_name: sanitizeString(launchContext.context.activeLocationName),
+      source_app: sanitizeString(launchContext.context.sourceApp),
+      source_record_id: launchContext.context.sourceRecordId ?? null,
     })
 
     return NextResponse.json(record, { status: 201 })

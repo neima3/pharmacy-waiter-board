@@ -4,7 +4,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, RefreshCw, CheckCircle, X, Sparkles } from 'lucide-react'
 import { MRNSearch } from './MRNSearch'
-import { Patient, OrderType } from '@/lib/types'
+import { Patient, OrderType, PatientLaunchContext } from '@/lib/types'
+import { BOARD_SOURCE_APP, DEFAULT_ACTIVE_LOCATION } from '@/lib/launch-context'
 import { cn, parseFlexibleDate } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -22,18 +23,28 @@ interface FormErrors {
   initials?: string
 }
 
-export function WaiterForm() {
+interface WaiterFormProps {
+  launchContext?: PatientLaunchContext | null
+  launchContextError?: string | null
+}
+
+export function WaiterForm({ launchContext, launchContextError }: WaiterFormProps) {
   const [mrn, setMrn] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [dob, setDob] = useState('')
+  const [patientId, setPatientId] = useState<number | null>(null)
+  const [patientName, setPatientName] = useState('')
+  const [activeLocationId, setActiveLocationId] = useState(DEFAULT_ACTIVE_LOCATION.id)
+  const [activeLocationName, setActiveLocationName] = useState(DEFAULT_ACTIVE_LOCATION.name)
+  const [sourceApp, setSourceApp] = useState(BOARD_SOURCE_APP)
+  const [sourceRecordId, setSourceRecordId] = useState<number | null>(null)
   const [numPrescriptions, setNumPrescriptions] = useState(1)
   const [comments, setComments] = useState('')
   const [initials, setInitials] = useState('')
   const [orderType, setOrderType] = useState<OrderType>('waiter')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [isManualEntry, setIsManualEntry] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<Set<string>>(new Set())
 
@@ -46,6 +57,30 @@ export function WaiterForm() {
   }, [])
 
   useEffect(() => {
+    if (!launchContext) return
+
+    setShowSuccess(false)
+    setMrn(launchContext.patientMrn)
+    setPatientId(launchContext.patientId ?? null)
+    setPatientName(launchContext.patientName)
+    setDob('')
+    setComments('')
+    setNumPrescriptions(1)
+    setInitials('')
+    setOrderType('waiter')
+    setErrors({})
+    setTouched(new Set())
+    setActiveLocationId(launchContext.activeLocationId || DEFAULT_ACTIVE_LOCATION.id)
+    setActiveLocationName(launchContext.activeLocationName || DEFAULT_ACTIVE_LOCATION.name)
+    setSourceApp(launchContext.sourceApp || BOARD_SOURCE_APP)
+    setSourceRecordId(launchContext.sourceRecordId ?? null)
+
+    const [nextFirstName = '', ...rest] = launchContext.patientName.split(' ')
+    setFirstName(nextFirstName)
+    setLastName(rest.join(' '))
+  }, [launchContext])
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && e.ctrlKey) {
         handleSubmit(e as unknown as React.FormEvent)
@@ -56,19 +91,21 @@ export function WaiterForm() {
   }, [mrn, firstName, lastName, dob, initials])
 
   const handlePatientFound = useCallback((patient: Patient) => {
+    setPatientId(patient.id)
+    setPatientName(`${patient.first_name} ${patient.last_name}`.trim())
     setFirstName(patient.first_name)
     setLastName(patient.last_name)
     setDob(patient.dob)
-    setIsManualEntry(false)
     setErrors(prev => ({ ...prev, firstName: undefined, lastName: undefined, dob: undefined }))
     initialsRef.current?.focus()
   }, [])
 
   const handleClear = useCallback(() => {
+    setPatientId(null)
+    setPatientName('')
     setFirstName('')
     setLastName('')
     setDob('')
-    setIsManualEntry(false)
   }, [])
 
   const validate = useCallback((): boolean => {
@@ -94,6 +131,8 @@ export function WaiterForm() {
 
   const resetForm = useCallback(() => {
     setMrn('')
+    setPatientId(null)
+    setPatientName('')
     setFirstName('')
     setLastName('')
     setDob('')
@@ -101,7 +140,7 @@ export function WaiterForm() {
     setComments('')
     setInitials('')
     setOrderType('waiter')
-    setIsManualEntry(false)
+    setSourceRecordId(null)
     setErrors({})
     setTouched(new Set())
     mrnRef.current?.focus()
@@ -125,6 +164,8 @@ export function WaiterForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mrn,
+          patient_id: patientId,
+          patient_name: patientName || `${firstName} ${lastName}`.trim(),
           first_name: firstName,
           last_name: lastName,
           dob: parsedDob,
@@ -132,6 +173,10 @@ export function WaiterForm() {
           comments,
           initials,
           order_type: orderType,
+          active_location_id: activeLocationId,
+          active_location_name: activeLocationName,
+          source_app: sourceApp,
+          source_record_id: sourceRecordId,
         }),
       })
       
@@ -222,6 +267,22 @@ export function WaiterForm() {
             <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide">
               MRN Search
             </label>
+            {launchContextError && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {launchContextError}
+              </p>
+            )}
+            {launchContext && (
+              <div className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
+                <div className="font-semibold">Launched from {launchContext.sourceApp}</div>
+                <div className="mt-1">
+                  {launchContext.patientName} • {launchContext.patientMrn}
+                </div>
+                <div className="mt-1 text-teal-700">
+                  Location: {activeLocationName}
+                </div>
+              </div>
+            )}
             <MRNSearch
               value={mrn}
               onChange={(value) => {
@@ -277,7 +338,6 @@ export function WaiterForm() {
               value={firstName}
               onChange={(e) => {
                 setFirstName(e.target.value)
-                setIsManualEntry(true)
                 if (errors.firstName) setErrors(prev => ({ ...prev, firstName: undefined }))
               }}
               onBlur={() => markTouched('firstName')}
@@ -307,7 +367,6 @@ export function WaiterForm() {
               value={lastName}
               onChange={(e) => {
                 setLastName(e.target.value)
-                setIsManualEntry(true)
                 if (errors.lastName) setErrors(prev => ({ ...prev, lastName: undefined }))
               }}
               onBlur={() => markTouched('lastName')}
@@ -338,7 +397,6 @@ export function WaiterForm() {
               value={dob}
               onChange={(e) => {
                 setDob(e.target.value)
-                setIsManualEntry(true)
                 if (errors.dob) setErrors(prev => ({ ...prev, dob: undefined }))
               }}
               onBlur={() => markTouched('dob')}

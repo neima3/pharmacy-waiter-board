@@ -9,9 +9,22 @@ export interface Patient {
   created_at: string
 }
 
+export interface PatientLaunchContext {
+  patientId?: number
+  patientMrn: string
+  patientName: string
+  activeLocationId: string
+  activeLocationName: string
+  sourceApp: string
+  targetTab: string
+  sourceRecordId?: number
+}
+
 export interface WaiterRecord {
   id: number
+  patient_id: number | null
   mrn: string
+  patient_name: string
   first_name: string
   last_name: string
   dob: string
@@ -21,6 +34,10 @@ export interface WaiterRecord {
   order_type: OrderType
   due_time: string
   created_at: string
+  active_location_id: string
+  active_location_name: string
+  source_app: string
+  source_record_id: number | null
   printed: boolean
   ready: boolean
   ready_at: string | null
