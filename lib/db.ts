@@ -89,6 +89,22 @@ export interface WorkflowEventRow {
   created_at: string
 }
 
+export interface ExternalIntakeEventRow {
+  id: number
+  source_app: string
+  idempotency_key: string
+  source_record_id: number
+  source_event_type: 'create' | 'update'
+  status: 'processing' | 'completed' | 'failed'
+  record_id: number | null
+  response_status: number | null
+  request_payload: string
+  response_payload: string | null
+  error_message: string | null
+  created_at: string
+  completed_at: string | null
+}
+
 function parseWorkflowEventPayload(value: unknown): WorkflowEventStoragePayload {
   if (typeof value !== 'string' || !value.trim()) {
     throw new Error('Invalid workflow event payload')
@@ -114,6 +130,24 @@ function normalizeWorkflowEventRow(row: Record<string, unknown>): WorkflowEventR
     record_id: Number(row.record_id),
     payload,
     created_at: toText(row.created_at),
+  }
+}
+
+function normalizeExternalIntakeEventRow(row: Record<string, unknown>): ExternalIntakeEventRow {
+  return {
+    id: Number(row.id),
+    source_app: toText(row.source_app),
+    idempotency_key: toText(row.idempotency_key),
+    source_record_id: Number(row.source_record_id),
+    source_event_type: toText(row.source_event_type) as 'create' | 'update',
+    status: toText(row.status, 'processing') as 'processing' | 'completed' | 'failed',
+    record_id: toNullableNumber(row.record_id),
+    response_status: toNullableNumber(row.response_status),
+    request_payload: toText(row.request_payload),
+    response_payload: row.response_payload ? String(row.response_payload) : null,
+    error_message: row.error_message ? String(row.error_message) : null,
+    created_at: toText(row.created_at),
+    completed_at: row.completed_at ? String(row.completed_at) : null,
   }
 }
 
@@ -201,6 +235,24 @@ async function _initDb() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `
+    await sql`
+      CREATE TABLE IF NOT EXISTS external_intake_events (
+        id SERIAL PRIMARY KEY,
+        source_app TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        source_event_type TEXT NOT NULL,
+        source_record_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'processing',
+        record_id INTEGER,
+        response_status INTEGER,
+        request_payload TEXT NOT NULL,
+        response_payload TEXT,
+        error_message TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        completed_at TIMESTAMPTZ,
+        UNIQUE (source_app, idempotency_key)
+      )
+    `
     // Create indexes for hot query paths
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_active ON waiter_records(ready, completed)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_order_type ON waiter_records(order_type)`
@@ -208,7 +260,11 @@ async function _initDb() {
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_created_at ON waiter_records(created_at)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_patient_id ON waiter_records(patient_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_waiter_records_location_id ON waiter_records(active_location_id)`
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_waiter_records_source_identity ON waiter_records(source_app, source_record_id) WHERE source_record_id IS NOT NULL`
     await sql`CREATE INDEX IF NOT EXISTS idx_workflow_events_created_at ON workflow_events(created_at)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_external_intake_events_created_at ON external_intake_events(created_at)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_external_intake_events_status ON external_intake_events(status)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_external_intake_events_source_identity ON external_intake_events(source_app, source_record_id)`
     await sql`
       UPDATE waiter_records
       SET
@@ -298,6 +354,18 @@ export async function getRecord(id: number): Promise<WaiterRecord | null> {
   const sql = getDb()
   const rows = await sql`SELECT * FROM waiter_records WHERE id = ${id} LIMIT 1` as WaiterRecord[]
   return rows[0] ? normalizeWaiterRecord(rows[0] as unknown as Record<string, unknown>) : null
+}
+
+export async function getRecordBySourceIdentity(sourceApp: string, sourceRecordId: number): Promise<WaiterRecord | null> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    WHERE source_app = ${sourceApp}
+      AND source_record_id = ${sourceRecordId}
+    LIMIT 1
+  `
+  const row = (rows as Record<string, unknown>[])[0]
+  return row ? normalizeWaiterRecord(row) : null
 }
 
 export async function getActiveRecords(): Promise<WaiterRecord[]> {
@@ -783,4 +851,90 @@ export async function syncExpiredWorkflowEvents(): Promise<WorkflowEventRow[]> {
   }
 
   return expiredEvents
+}
+
+export async function getExternalIntakeEvent(
+  sourceApp: string,
+  idempotencyKey: string,
+): Promise<ExternalIntakeEventRow | null> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM external_intake_events
+    WHERE source_app = ${sourceApp}
+      AND idempotency_key = ${idempotencyKey}
+    LIMIT 1
+  `
+  const row = (rows as Record<string, unknown>[])[0]
+  return row ? normalizeExternalIntakeEventRow(row) : null
+}
+
+export async function claimExternalIntakeEvent(input: {
+  source_app: string
+  idempotency_key: string
+  source_event_type: 'create' | 'update'
+  source_record_id: number
+  request_payload: string
+}): Promise<ExternalIntakeEventRow | null> {
+  const sql = getDb()
+  const rows = await sql`
+    INSERT INTO external_intake_events (
+      source_app,
+      idempotency_key,
+      source_event_type,
+      source_record_id,
+      request_payload
+    )
+    VALUES (
+      ${input.source_app},
+      ${input.idempotency_key},
+      ${input.source_event_type},
+      ${input.source_record_id},
+      ${input.request_payload}
+    )
+    ON CONFLICT (source_app, idempotency_key) DO NOTHING
+    RETURNING *
+  `
+  const row = (rows as Record<string, unknown>[])[0]
+  return row ? normalizeExternalIntakeEventRow(row) : null
+}
+
+export async function completeExternalIntakeEvent(
+  id: number,
+  updates: {
+    record_id: number
+    response_status: number
+    response_payload: string
+  },
+): Promise<void> {
+  const sql = getDb()
+  await sql`
+    UPDATE external_intake_events
+    SET
+      status = 'completed',
+      record_id = ${updates.record_id},
+      response_status = ${updates.response_status},
+      response_payload = ${updates.response_payload},
+      error_message = NULL,
+      completed_at = NOW()
+    WHERE id = ${id}
+  `
+}
+
+export async function failExternalIntakeEvent(
+  id: number,
+  updates: {
+    response_status: number
+    error_message: string
+  },
+): Promise<void> {
+  const sql = getDb()
+  await sql`
+    UPDATE external_intake_events
+    SET
+      status = 'failed',
+      response_status = ${updates.response_status},
+      error_message = ${updates.error_message},
+      completed_at = NOW()
+    WHERE id = ${id}
+  `
 }
