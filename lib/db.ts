@@ -309,6 +309,15 @@ export async function getActiveRecords(): Promise<WaiterRecord[]> {
   return (rows as Record<string, unknown>[]).map(normalizeWaiterRecord)
 }
 
+export async function getAllRecords(): Promise<WaiterRecord[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM waiter_records
+    ORDER BY created_at DESC, id DESC
+  `
+  return (rows as Record<string, unknown>[]).map(normalizeWaiterRecord)
+}
+
 export async function getReadyWaiterRecords(): Promise<WaiterRecord[]> {
   const sql = getDb()
   const settings = await getSettings()
