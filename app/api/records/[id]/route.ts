@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { initializeDatabase, getRecord, updateRecord, deleteRecord } from '@/lib/db'
 import { validateComments, validateInitials, sanitizeString } from '@/lib/validation'
 import { workflowStateToUpdate, type WorkflowState } from '@/lib/workflow-state'
+import { buildQueueRecordResponse } from '@/lib/queue-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function GET(
     const { id } = await params
     const record = await getRecord(parseInt(id, 10))
     if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
-    return NextResponse.json(record)
+    return NextResponse.json(buildQueueRecordResponse(record))
   } catch (error) {
     console.error('Error fetching record:', error)
     return NextResponse.json({ error: 'Failed to fetch record' }, { status: 500 })
@@ -71,7 +72,7 @@ export async function PUT(
     )
 
     if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
-    return NextResponse.json(record)
+    return NextResponse.json(buildQueueRecordResponse(record))
   } catch (error) {
     console.error('Error updating record:', error)
     return NextResponse.json({ error: 'Failed to update record' }, { status: 500 })

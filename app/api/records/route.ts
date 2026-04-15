@@ -4,6 +4,7 @@ import { calculateDueTime } from '@/lib/utils'
 import { OrderType } from '@/lib/types'
 import { validateRecord, sanitizeString } from '@/lib/validation'
 import { normalizePatientLaunchContext } from '@/lib/launch-context'
+import { buildQueueRecordResponse, buildQueueRecordsResponse } from '@/lib/queue-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       default:
         records = await getActiveRecords()
     }
-    return NextResponse.json(records)
+    return NextResponse.json(buildQueueRecordsResponse(records))
   } catch (error) {
     console.error('Error fetching records:', error)
     return NextResponse.json({ error: 'Failed to fetch records' }, { status: 500 })
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       source_record_id: launchContext.context.sourceRecordId ?? null,
     })
 
-    return NextResponse.json(record, { status: 201 })
+    return NextResponse.json(buildQueueRecordResponse(record), { status: 201 })
   } catch (error) {
     console.error('Error creating record:', error)
     return NextResponse.json({ error: 'Failed to create record' }, { status: 500 })
