@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { initializeDatabase, getRecord, getRecordAuditLog } from '@/lib/db'
+import { initializeDatabase, getRecord, getRecordAuditLog, getRecordWorkflowEvents } from '@/lib/db'
+import { buildRecordHistoryPayload, parseHistoryQuery } from '@/lib/history-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +15,18 @@ export async function GET(
     const record = await getRecord(recordId)
     if (!record) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
 
-    const limit = parseInt(request.nextUrl.searchParams.get('limit') || '100', 10)
-    const history = await getRecordAuditLog(recordId, limit)
-    return NextResponse.json({ record, history })
+    const query = parseHistoryQuery(request.nextUrl.searchParams)
+    const auditRows = await getRecordAuditLog(recordId, query.limit, {
+      action: query.action,
+    })
+    const workflowEvents = await getRecordWorkflowEvents(recordId, query.limit, query.eventType)
+    const payload = buildRecordHistoryPayload({
+      record,
+      auditRows,
+      workflowEvents,
+      query,
+    })
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('Error fetching record history:', error)
     return NextResponse.json({ error: 'Failed to fetch record history' }, { status: 500 })

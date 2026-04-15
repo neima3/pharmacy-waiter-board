@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless'
-import { Patient, WaiterRecord, AuditLog, DEFAULT_SETTINGS, OrderType } from './types'
+import { Patient, WaiterRecord, DEFAULT_SETTINGS, OrderType } from './types'
 import { resolveDatabaseUrl } from './db-mode'
 import { BOARD_SOURCE_APP, DEFAULT_ACTIVE_LOCATION } from './launch-context'
 import {
@@ -11,6 +11,7 @@ import {
   isExpiredReadyRecord,
   toWorkflowEventStoragePayload,
 } from './workflow-events'
+import type { HistoryAuditRow } from './history-contract'
 
 let sqlInstance: ReturnType<typeof neon> | null = null
 
@@ -588,21 +589,48 @@ export async function updateSettings(updates: Record<string, unknown>): Promise<
   }
 }
 
-export async function getAuditLog(limit = 100): Promise<AuditLog[]> {
+export async function getAuditLog(
+  limit = 100,
+  filters: {
+    recordId?: number | null
+    action?: string | null
+  } = {},
+): Promise<HistoryAuditRow[]> {
   const sql = getDb()
-  const rows = await sql`SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ${limit}`
-  return rows as AuditLog[]
+  const clauses: string[] = []
+  const params: unknown[] = []
+
+  if (filters.recordId !== undefined && filters.recordId !== null) {
+    params.push(filters.recordId)
+    clauses.push(`record_id = $${params.length}`)
+  }
+
+  if (filters.action) {
+    params.push(filters.action.toUpperCase())
+    clauses.push(`action = $${params.length}`)
+  }
+
+  params.push(limit)
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
+  const rows = await sql.query(
+    `SELECT * FROM audit_log ${whereClause} ORDER BY timestamp DESC LIMIT $${params.length}`,
+    params,
+  )
+
+  return rows as HistoryAuditRow[]
 }
 
-export async function getRecordAuditLog(recordId: number, limit = 100): Promise<AuditLog[]> {
-  const sql = getDb()
-  const rows = await sql`
-    SELECT * FROM audit_log
-    WHERE record_id = ${recordId}
-    ORDER BY timestamp DESC
-    LIMIT ${limit}
-  `
-  return rows as AuditLog[]
+export async function getRecordAuditLog(
+  recordId: number,
+  limit = 100,
+  filters: {
+    action?: string | null
+  } = {},
+): Promise<HistoryAuditRow[]> {
+  return getAuditLog(limit, {
+    recordId,
+    action: filters.action ?? null,
+  })
 }
 
 async function logAudit(recordId: number, action: string, oldValues: WaiterRecord | null, newValues: WaiterRecord | null, initials?: string) {
@@ -664,6 +692,52 @@ export async function getWorkflowEventsSince(afterId = 0, limit = 200): Promise<
     LIMIT ${limit}
   `
   return (rows as Record<string, unknown>[]).map(normalizeWorkflowEventRow)
+}
+
+export async function getWorkflowEvents(
+  limit = 100,
+  filters: {
+    recordId?: number | null
+    recordIds?: number[]
+    eventType?: WorkflowEventType | null
+  } = {},
+): Promise<WorkflowEventRow[]> {
+  const sql = getDb()
+  const clauses: string[] = []
+  const params: unknown[] = []
+
+  if (filters.recordIds && filters.recordIds.length > 0) {
+    params.push(filters.recordIds)
+    clauses.push(`record_id = ANY($${params.length}::int[])`)
+  } else if (filters.recordId !== undefined && filters.recordId !== null) {
+    params.push(filters.recordId)
+    clauses.push(`record_id = $${params.length}`)
+  }
+
+  if (filters.eventType) {
+    params.push(filters.eventType)
+    clauses.push(`event_type = $${params.length}`)
+  }
+
+  params.push(limit)
+  const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
+  const rows = await sql.query(
+    `SELECT * FROM workflow_events ${whereClause} ORDER BY id DESC LIMIT $${params.length}`,
+    params,
+  )
+
+  return (rows as Record<string, unknown>[]).map(normalizeWorkflowEventRow)
+}
+
+export async function getRecordWorkflowEvents(
+  recordId: number,
+  limit = 100,
+  eventType: WorkflowEventType | null = null,
+): Promise<WorkflowEventRow[]> {
+  return getWorkflowEvents(limit, {
+    recordId,
+    eventType,
+  })
 }
 
 export async function getLatestWorkflowEventId(): Promise<number> {
