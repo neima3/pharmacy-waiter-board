@@ -8,18 +8,35 @@ const EVENT_POLL_INTERVAL_MS = 1000
 const HEARTBEAT_INTERVAL_MS = 15000
 const CANONICAL_EVENT_TYPES: WorkflowEventType[] = ['create', 'update', 'advance', 'archive', 'expiration']
 
+export interface EventsRouteDependencies {
+  initializeDatabase: typeof initializeDatabase
+  getLatestWorkflowEventId: typeof getLatestWorkflowEventId
+  getWorkflowEventsSince: typeof getWorkflowEventsSince
+  syncExpiredWorkflowEvents: typeof syncExpiredWorkflowEvents
+}
+
+export const eventsRouteDependencies: EventsRouteDependencies = {
+  initializeDatabase,
+  getLatestWorkflowEventId,
+  getWorkflowEventsSince,
+  syncExpiredWorkflowEvents,
+}
+
 function parseCursor(value: string | null): number {
   if (!value) return 0
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0
 }
 
-export async function GET(request: NextRequest) {
-  await initializeDatabase()
+export async function getEventsResponse(
+  request: NextRequest,
+  deps: EventsRouteDependencies = eventsRouteDependencies,
+) {
+  await deps.initializeDatabase()
 
   const encoder = new TextEncoder()
   const requestedCursor = request.headers.get('last-event-id') ?? request.nextUrl.searchParams.get('cursor')
-  let cursor = requestedCursor ? parseCursor(requestedCursor) : await getLatestWorkflowEventId()
+  let cursor = requestedCursor ? parseCursor(requestedCursor) : await deps.getLatestWorkflowEventId()
   let closed = false
   let inFlight = false
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
@@ -33,8 +50,8 @@ export async function GET(request: NextRequest) {
         if (closed || inFlight) return
         inFlight = true
         try {
-          await syncExpiredWorkflowEvents()
-          const events = await getWorkflowEventsSince(cursor)
+          await deps.syncExpiredWorkflowEvents()
+          const events = await deps.getWorkflowEventsSince(cursor)
           for (const event of events) {
             if (!CANONICAL_EVENT_TYPES.includes(event.payload.type)) continue
             cursor = event.id
@@ -82,4 +99,8 @@ export async function GET(request: NextRequest) {
       'X-Accel-Buffering': 'no',
     },
   })
+}
+
+export async function GET(request: NextRequest) {
+  return getEventsResponse(request)
 }

@@ -39,6 +39,7 @@ test('health endpoint exposes integrated readiness and db mode', async () => {
     }
 
     assert.equal(response.status, 200)
+    assert.equal(response.headers.get('Cache-Control'), 'no-store, no-cache, must-revalidate')
     assert.equal(payload.app_mode, 'integrated')
     assert.equal(payload.db_mode, 'integrated')
     assert.equal(payload.ready, true)
@@ -69,6 +70,7 @@ test('health endpoint returns a degraded response in standalone mode without an 
     }
 
     assert.equal(response.status, 200)
+    assert.equal(response.headers.get('Cache-Control'), 'no-store, no-cache, must-revalidate')
     assert.equal(payload.app_mode, 'standalone')
     assert.equal(payload.db_mode, 'standalone')
     assert.equal(payload.ready, true)
@@ -99,6 +101,7 @@ test('health endpoint reports degraded readiness for integrated mode without the
     }
 
     assert.equal(response.status, 503)
+    assert.equal(response.headers.get('Cache-Control'), 'no-store, no-cache, must-revalidate')
     assert.equal(payload.app_mode, 'integrated')
     assert.equal(payload.db_mode, 'integrated')
     assert.equal(payload.ready, false)
