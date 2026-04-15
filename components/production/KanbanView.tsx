@@ -30,7 +30,7 @@ export function KanbanView({ records, onUpdate, onDelete, selectedIds, onToggleS
     <div className={cn('grid grid-cols-3', largeDisplay ? 'gap-6' : 'gap-4')}>
       {/* New Orders Column */}
       <KanbanColumn
-        title="New Orders"
+        title="Intake"
         count={columns.newOrders.length}
         color="blue"
         records={columns.newOrders}
@@ -47,7 +47,7 @@ export function KanbanView({ records, onUpdate, onDelete, selectedIds, onToggleS
 
       {/* Printed Column */}
       <KanbanColumn
-        title="Printed"
+        title="Production"
         count={columns.printed.length}
         color="amber"
         records={columns.printed}
@@ -64,7 +64,7 @@ export function KanbanView({ records, onUpdate, onDelete, selectedIds, onToggleS
 
       {/* Ready Column */}
       <KanbanColumn
-        title="Ready for Pickup"
+        title="Ready"
         count={columns.ready.length}
         color="green"
         records={columns.ready}

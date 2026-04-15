@@ -18,8 +18,8 @@ export const CompletedTab = memo(function CompletedTab({ records, onMarkComplete
     return (
       <EmptyState
         icon={CheckCircle}
-        title="No Completed Orders"
-        message="Orders ready for pickup will appear here"
+        title="No Pickup Complete Orders"
+        message="Orders finished at pickup will appear here"
         borderColor="border-green-300"
         bgColor="bg-green-50"
       />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initializeDatabase, getRecord, updateRecord, deleteRecord } from '@/lib/db'
 import { validateComments, validateInitials, sanitizeString } from '@/lib/validation'
+import { workflowStateToUpdate, type WorkflowState } from '@/lib/workflow-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export async function PUT(
     await initializeDatabase()
     const { id } = await params
     const body = await request.json()
-    const { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed } = body
+    const { comments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed, workflow_state } = body
 
     if (comments !== undefined) {
       const commentsResult = validateComments(comments)
@@ -52,9 +53,19 @@ export async function PUT(
 
     const sanitizedComments = comments !== undefined ? sanitizeString(comments) : undefined
 
+    const workflowStateUpdate = typeof workflow_state === 'string' ? workflowStateToUpdate(workflow_state as WorkflowState) : null
     const record = await updateRecord(
       parseInt(id, 10),
-      { comments: sanitizedComments, initials, num_prescriptions, printed, ready, completed, moved_to_mail, mailed },
+      {
+        comments: sanitizedComments,
+        initials,
+        num_prescriptions,
+        printed: workflowStateUpdate?.printed ?? printed,
+        ready: workflowStateUpdate?.ready ?? ready,
+        completed: workflowStateUpdate?.completed ?? completed,
+        moved_to_mail: workflowStateUpdate?.moved_to_mail ?? moved_to_mail,
+        mailed: workflowStateUpdate?.mailed ?? mailed,
+      },
       initials
     )
 

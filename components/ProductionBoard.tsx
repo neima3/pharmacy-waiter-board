@@ -248,7 +248,7 @@ export function ProductionBoard() {
                   activeTab === 'completed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 )}
               >
-                Completed
+                Pickup Complete
                 <span className={cn(
                   'ml-2 rounded-full px-2 py-0.5',
                   largeDisplay ? 'text-sm' : 'text-xs',
