@@ -510,6 +510,17 @@ export async function getAuditLog(limit = 100): Promise<AuditLog[]> {
   return rows as AuditLog[]
 }
 
+export async function getRecordAuditLog(recordId: number, limit = 100): Promise<AuditLog[]> {
+  const sql = getDb()
+  const rows = await sql`
+    SELECT * FROM audit_log
+    WHERE record_id = ${recordId}
+    ORDER BY timestamp DESC
+    LIMIT ${limit}
+  `
+  return rows as AuditLog[]
+}
+
 async function logAudit(recordId: number, action: string, oldValues: WaiterRecord | null, newValues: WaiterRecord | null, initials?: string) {
   const sql = getDb()
   await sql`

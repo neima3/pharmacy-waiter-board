@@ -62,3 +62,22 @@ export function workflowStateToUpdate(state: WorkflowState): WorkflowStateUpdate
       return { completed: true, mailed: true }
   }
 }
+
+export function nextWorkflowState(state: WorkflowState): WorkflowState {
+  switch (state) {
+    case 'intake':
+      return 'production'
+    case 'production':
+      return 'ready'
+    case 'ready':
+      return 'pickup_complete'
+    case 'pickup_complete':
+      return 'moved_to_mail'
+    case 'moved_to_mail':
+      return 'mailed'
+    case 'mailed':
+      return 'archived'
+    case 'archived':
+      return 'archived'
+  }
+}

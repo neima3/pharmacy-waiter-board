@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deriveWorkflowState, workflowStateLabel, workflowStateToUpdate } from '../lib/workflow-state'
+import { deriveWorkflowState, nextWorkflowState, workflowStateLabel, workflowStateToUpdate } from '../lib/workflow-state'
 
 test('derives workflow states from persisted record flags', () => {
   assert.equal(deriveWorkflowState({ printed: false, ready: false, completed: false, moved_to_mail: false, mailed: false }), 'intake')
@@ -25,4 +25,14 @@ test('labels workflow states for the UI', () => {
   assert.equal(workflowStateLabel('intake'), 'Intake')
   assert.equal(workflowStateLabel('pickup_complete'), 'Pickup Complete')
   assert.equal(workflowStateLabel('archived'), 'Archived')
+})
+
+test('advances workflow states in canonical order', () => {
+  assert.equal(nextWorkflowState('intake'), 'production')
+  assert.equal(nextWorkflowState('production'), 'ready')
+  assert.equal(nextWorkflowState('ready'), 'pickup_complete')
+  assert.equal(nextWorkflowState('pickup_complete'), 'moved_to_mail')
+  assert.equal(nextWorkflowState('moved_to_mail'), 'mailed')
+  assert.equal(nextWorkflowState('mailed'), 'archived')
+  assert.equal(nextWorkflowState('archived'), 'archived')
 })
